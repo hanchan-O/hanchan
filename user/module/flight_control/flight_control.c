@@ -19,7 +19,7 @@ const int16_t COS_Q15_15[9] = {
 };
 
 // ====== 非阻塞状态机的静态状态 ======
-uint8_t  sm_idx = 0;           // 0..8，余弦表索引
+uint8_t  sm_idx = 0;           // 0..8，余弦表索引，最高到最低
 int8_t   sm_dir = 1;          // +1 正向 / -1 反向
 uint32_t sm_next_tick = 0;    // 下次步进的时刻（ms）
 uint8_t  thr = 0;             // 扑动频率控制
