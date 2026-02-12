@@ -43,7 +43,7 @@
 #include <stdbool.h>
 
 // 调试模式开关 - 注释掉此行可禁用所有调试功能，节省内存
-#define DEBUG_MODE
+//#define DEBUG_MODE
 
 /* USER CODE END Includes */
 
