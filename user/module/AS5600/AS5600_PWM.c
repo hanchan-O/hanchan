@@ -153,8 +153,17 @@ void StarAndGetResult(void){
 	filtered_ad[3] = limit_and_lowpass_filter(AD_Value[3], 3);
 	
 	// 使用滤波后的值计算角度
+	// 对于编码器方向反转的电机，同时反转原始值和中点值
+	// 电机0（右前）- 正常
 	Wings_Data.Wings_motor[0].Corrective_Angle = PROCESS_VALUE(filtered_ad[0], MOTOR1_MIDPOINT);
+	// 电机1（左后）- 正常
 	Wings_Data.Wings_motor[1].Corrective_Angle = PROCESS_VALUE(filtered_ad[1], MOTOR2_MIDPOINT);
-	Wings_Data.Wings_motor[2].Corrective_Angle = PROCESS_VALUE(filtered_ad[2], MOTOR3_MIDPOINT);
-	Wings_Data.Wings_motor[3].Corrective_Angle = PROCESS_VALUE(filtered_ad[3], MOTOR4_MIDPOINT);
+	// 电机2（左前）- 反转：原始值和中点值都反转
+	Wings_Data.Wings_motor[2].Corrective_Angle = PROCESS_VALUE(
+		(4096u - filtered_ad[2]), 
+		(4096u - MOTOR3_MIDPOINT));
+	// 电机3（右后）- 反转：原始值和中点值都反转
+	Wings_Data.Wings_motor[3].Corrective_Angle = PROCESS_VALUE(
+		(4096u - filtered_ad[3]), 
+		(4096u - MOTOR4_MIDPOINT));
 }

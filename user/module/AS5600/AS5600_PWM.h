@@ -12,19 +12,24 @@
 
 #define MAX_VALUE 4095  // 输入范围 0~4095，所以最大值为 4096
 
-// 各电机1024点位定义
-#define MOTOR1_MIDPOINT 968  // 电机1 1024点编码器值 右前
-#define MOTOR2_MIDPOINT 144  // 电机2 1024点编码器值 左后
-#define MOTOR3_MIDPOINT 3012   // 电机3 1024点编码器值 左前
-#define MOTOR4_MIDPOINT 2177 // 电机4 1024点编码器值	 右后
+// 各电机1024点位定义（新编码器的原始中点值）
+#define MOTOR1_MIDPOINT 1508 // 电机0（右前）→ M1通道
+#define MOTOR2_MIDPOINT 577	// 电机1（左后）→ M4通道
+#define MOTOR3_MIDPOINT 3172   // 电机2（左前）→ M3通道
+#define MOTOR4_MIDPOINT 3580 // 电机3（右后）→ M2通道
 
+// 编码器方向反转标志（1=反转，0=正常）
+// 电机2（左前）和电机3（右后）的编码器方向与其他电机相反
+#define MOTOR1_REVERSE 0  // 电机0（右前）- 正常
+#define MOTOR2_REVERSE 0  // 电机1（左后）- 正常
+#define MOTOR3_REVERSE 1  // 电机2（左前）- 反转（逆时针转时编码器值减小）
+#define MOTOR4_REVERSE 1  // 电机3（右后）- 反转（顺时针转时编码器值减小）
 
 // PROCESS_VALUE宏：将原始编码器值转换为相对角度值
 // 原理：将原始值相对于零点(zero)进行偏移，使zero位置对应1024（垂直位置）
 // 公式：result = (raw - zero + 1024) mod 4096
 // 其中1024对应90°（垂直位置），0对应0°，2048对应180°，3072对应270°
-#define PROCESS_VALUE(raw, zero) \
-    (((raw) + 4096u - (((zero) + 3072u) & 0x0FFFu)) & 0x0FFFu)
+#define PROCESS_VALUE(raw, zero) (((raw) + 4096u - (((zero) + 3072u) & 0x0FFFu)) & 0x0FFFu)
 
 
 

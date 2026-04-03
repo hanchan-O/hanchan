@@ -1,28 +1,28 @@
 #include "flight_control.h"
-#include "motor.h"  // 包含motor.h以使用abs16_fast函数
+#include "motor.h"  // 
 
 // ==================== 全局变量定义 ====================
 
 // 姿态数据实例
 Attitude_Est_t attitude = {0};
 
-// 航向保持实例
-Heading_Hold_t heading_hold = {0};
-
 // ====== 定点余弦表（Q15），9点：0°~180°（步长22.5°） ======
 // 索引0=0°(cos=1.0), 索引4=90°(cos=0), 索引8=180°(cos=-1.0)
 // 用于扑动运动生成正弦波形
-const int16_t COS_Q15_15[9] = {
+static const int16_t COS_Q15_15[9] = {
     30784, 25133,  16384,
     11207,     0, -11207,
    -16384,-25133,-30784
 };
 
 // ====== 非阻塞状态机的静态状态 ======
-uint8_t  sm_idx = 0;           // 0..8，余弦表索引，最高到最低
-int8_t   sm_dir = 1;          // +1 正向 / -1 反向
+uint8_t  sm_idx = 0;           // 0..8，余弦表索引，从0开始（翅膀向上初始位置）
+int8_t   sm_dir = 1;          // +1 正向(上→下) / -1 反向(下→上)，初始向下扑动
 uint32_t sm_next_tick = 0;    // 下次步进的时刻（ms）
 uint8_t  thr = 0;             // 扑动频率控制
+
+// 扑动中心向下偏移量（增加升力）
+#define FLAP_CENTER_OFFSET 200  // 向下偏移200编码器值
 
 // ==================== 函数实现 ====================
 
@@ -77,10 +77,6 @@ void Estimate_Attitude(void)
                         Wings_Data.Wings_motor[3].Corrective_Angle) / 2;
     attitude.pitch = front_avg - back_avg;
     
-    // 横滚变化率 → 偏航速率估计
-    attitude.yaw_rate = attitude.roll - heading_hold.last_roll;
-    heading_hold.last_roll = attitude.roll;
-    
     // 升力平衡度（4电机位置方差，越小越平衡）
     int32_t variance = 0;
     for (uint8_t i = 0; i < 4; i++) {
@@ -122,82 +118,6 @@ void Motor_Sync_Compensate(void)
 
 /**
 ************************************************************************************************
-* @brief    姿态稳定补偿 - 自动修正飞行姿态
-* @param    None
-* @return   None
-* @说明     根据横滚和俯仰角，微调电机目标角度产生恢复力矩
-************************************************************************************************
-**/
-void Attitude_Stabilize(void)
-{
-    // 检查是否在转向（Yaw摇杆不在中位附近）
-    // 转向时禁用姿态稳定，避免干扰转向
-    if (abs16_fast(elrs_data.Yaw) > 20) {
-        // 正在转向，禁用姿态稳定
-        return;
-    }
-    
-    // 横滚稳定：左右差动补偿（正值roll=左侧高，需要增加右侧升力）
-    const int16_t ROLL_GAIN = 4;
-    if (abs16_fast(attitude.roll) > 15) {  // 超过1.5°开始补偿
-        int16_t roll_comp = (attitude.roll * ROLL_GAIN) / 10;
-        // 右侧翅膀向下（增加攻角/升力），左侧向上
-        Wings_Data.Wings_motor[0].Target_Angle += roll_comp;  // 右前
-        Wings_Data.Wings_motor[3].Target_Angle += roll_comp;  // 右后
-        Wings_Data.Wings_motor[1].Target_Angle -= roll_comp;  // 左后
-        Wings_Data.Wings_motor[2].Target_Angle -= roll_comp;  // 左前
-    }
-    
-    // 俯仰稳定：前后差动补偿
-    const int16_t PITCH_GAIN = 3;
-    if (abs16_fast(attitude.pitch) > 15) {
-        int16_t pitch_comp = (attitude.pitch * PITCH_GAIN) / 10;
-        // 前侧向下，后侧向上
-        Wings_Data.Wings_motor[0].Target_Angle += pitch_comp;  // 前
-        Wings_Data.Wings_motor[2].Target_Angle += pitch_comp;  // 前
-        Wings_Data.Wings_motor[1].Target_Angle -= pitch_comp;  // 后
-        Wings_Data.Wings_motor[3].Target_Angle -= pitch_comp;  // 后
-    }
-}
-
-/**
-************************************************************************************************
-* @brief    航向保持更新 - 自动保持直线飞行
-* @param    enable: 1=使能航向保持, 0=重置
-* @return   None
-* @说明     通过积分偏航速率估算航向变化，自动产生反向转向力矩
-************************************************************************************************
-**/
-void Heading_Hold_Update(uint8_t enable)
-{
-    if (!enable) {
-        // 禁用航向保持，重置积分
-        heading_hold.yaw_integral = 0;
-        heading_hold.hold_enabled = 0;
-        return;
-    }
-    
-    if (!heading_hold.hold_enabled) {
-        // 首次使能，初始化
-        heading_hold.yaw_integral = 0;
-        heading_hold.hold_enabled = 1;
-        return;
-    }
-    
-    // 积分偏航速率（带衰减防止漂移）
-    heading_hold.yaw_integral += attitude.yaw_rate;
-    heading_hold.yaw_integral = (heading_hold.yaw_integral * 95) / 100;  // 5%衰减
-    
-    // 限制积分范围
-    if (heading_hold.yaw_integral > 500) heading_hold.yaw_integral = 500;
-    if (heading_hold.yaw_integral < -500) heading_hold.yaw_integral = -500;
-    
-    // 计算航向误差
-    heading_hold.heading_error = (int16_t)heading_hold.yaw_integral;
-}
-
-/**
-************************************************************************************************
 * @brief    动态转向计算 - 实现小半径转向
 * @param    yaw_input: 转向输入（-100 ~ +100，来自elrs_data.Yaw）
 * @param    turn_data: 输出转向参数结构
@@ -207,7 +127,7 @@ void Heading_Hold_Update(uint8_t enable)
 **/
 void Calculate_Dynamic_Turn(int16_t yaw_input, TurnControl_t* turn_data)
 {
-    // 基础振幅
+    // 基础振幅 - 配合MIN_AMP=600和MAX_AMP=1200
     turn_data->base_amp = 800;
     
     // 将输入映射到 -1.0 ~ +1.0（修正范围从500改为100，匹配elrs_data.Yaw的范围）
@@ -240,6 +160,9 @@ void Calculate_Dynamic_Turn(int16_t yaw_input, TurnControl_t* turn_data)
 **/
 uint32_t Calculate_Flap_Step_Time(uint8_t throttle)
 {
+    // 防止除零错误
+    if (throttle == 0) throttle = 5;
+    
     const uint32_t STEPS = 30U;
     uint32_t step_ms = (5000U + (STEPS * throttle / 2U)) / (STEPS * throttle);
     if (step_ms == 0) step_ms = 1;
@@ -257,28 +180,31 @@ uint32_t Calculate_Flap_Step_Time(uint8_t throttle)
 * @return   None
 ************************************************************************************************
 **/
-void Execute_Flap_Step(TurnControl_t* turn_ctrl,
+void Execute_Flap_Step(int16_t yaw_input,
+                       TurnControl_t* turn_ctrl,
                        int16_t motor_front_L_ready,
                        int16_t motor_front_R_ready,
                        int16_t motor_back_L_ready,
                        int16_t motor_back_R_ready)
 {
     // 根据转向方向确定相位偏移（左转为负，右转为正）
-    int8_t phase_offset = (elrs_data.Yaw < 0) ? -turn_ctrl->phase_diff : turn_ctrl->phase_diff;
+    int8_t phase_offset = (yaw_input < 0) ? -turn_ctrl->phase_diff : turn_ctrl->phase_diff;
 
     // 计算动态振幅（带转向差动）
     // 左转（Yaw<0，turn_ratio<0）：右翼振幅增大，左翼振幅减小
     // 右转（Yaw>0，turn_ratio>0）：左翼振幅增大，右翼振幅减小
-    int16_t amp_diff = (turn_ctrl->turn_ratio * 4);  // 最大±400
+    int16_t amp_diff = (turn_ctrl->turn_ratio * 25) / 10;  // 系数2.5，最大±250，减小差动幅度使转向更平滑
     // 注意：amp_diff的符号与Yaw相同
     // Yaw<0时amp_diff<0，需要ampR增大 → ampR = base - amp_diff（减负=加正）
     // Yaw>0时amp_diff>0，需要ampL增大 → ampL = base + amp_diff
     int16_t ampR = turn_ctrl->base_amp - amp_diff;   // 右翼振幅
     int16_t ampL = turn_ctrl->base_amp + amp_diff;   // 左翼振幅
 
-    // 限制振幅范围（保证最小升力）
-    ampR = constrain(ampR, 300, 1000);
-    ampL = constrain(ampL, 300, 1000);
+    // 限制振幅范围（保证最小升力，防止转向时一侧振幅过小）
+    const int16_t MIN_AMP = 750;  // 最小振幅保护，从600提高到750，防止小振幅时电机卡顿
+    const int16_t MAX_AMP = 1200; // 最大振幅限制
+    ampR = constrain(ampR, MIN_AMP, MAX_AMP);
+    ampL = constrain(ampL, MIN_AMP, MAX_AMP);
 
     // 计算左右翼相位索引（带转向相位差）
     int8_t idxR = sm_idx;                           // 右翼索引
@@ -300,13 +226,14 @@ void Execute_Flap_Step(TurnControl_t* turn_ctrl,
     int16_t biasL = turn_ctrl->bias_angle;   // 左翼偏置（与Yaw反向）
 
     // 设置目标角度（带动态振幅和相位差）
+    // 添加 FLAP_CENTER_OFFSET 使扑动中心向下偏移，增加升力
     // 右翼：电机0(右前) + 电机3(右后)
-    Wings_Data.Wings_motor[0].Target_Angle = (int16_t)(motor_front_R_ready + biasR - q15_mul(ampR, cR));
-    Wings_Data.Wings_motor[3].Target_Angle = (int16_t)(motor_back_R_ready  + biasR - q15_mul(ampR, cR));
+    Wings_Data.Wings_motor[0].Target_Angle = (int16_t)(motor_front_R_ready + biasR + FLAP_CENTER_OFFSET - q15_mul(ampR, cR));
+    Wings_Data.Wings_motor[3].Target_Angle = (int16_t)(motor_back_R_ready  + biasR + FLAP_CENTER_OFFSET - q15_mul(ampR, cR));
 
     // 左翼：电机2(左前) + 电机1(左后)
-    Wings_Data.Wings_motor[2].Target_Angle = (int16_t)(motor_front_L_ready + biasL - q15_mul(ampL, cL));
-    Wings_Data.Wings_motor[1].Target_Angle = (int16_t)(motor_back_L_ready  + biasL - q15_mul(ampL, cL));
+    Wings_Data.Wings_motor[2].Target_Angle = (int16_t)(motor_front_L_ready + biasL + FLAP_CENTER_OFFSET - q15_mul(ampL, cL));
+    Wings_Data.Wings_motor[1].Target_Angle = (int16_t)(motor_back_L_ready  + biasL + FLAP_CENTER_OFFSET - q15_mul(ampL, cL));
 
     // 更新索引与方向
     if (sm_dir > 0) {

@@ -164,7 +164,7 @@ void ELRS_UARTE_RxCallback(uint16_t Size)
             // midpoint_1：根据Yaw绝对值计算额外偏置，用于转向时调整翅膀基准位置
             elrs_data.midpoint_1= int16_Map_with_median(abs16_fast(elrs_data.Yaw), 0, 100, 50, 0, 30);        // Yaw越大，偏置越大(0-30)
             elrs_data.midpoint  = apply_deadzone(int16_Map_with_median(elrs_data.channels[1], 174, 1808, 992, -80, 80), 5);  // 前后微调(带死区)
-            elrs_data.Switch    = (elrs_data.channels[4] < 1050) ? 0 : (elrs_data.channels[4] > 1700) ? 1 : 0;  // 开关：0=关闭, 1=开启
+            elrs_data.Switch    = (elrs_data.channels[4] > 1500) ? 1 : 0;  // 开关：0=关闭(<1500), 1=开启(>1500)
             elrs_data.Mode      = (elrs_data.channels[5] > 1700) ? 2 : ((elrs_data.channels[5] > 900 && elrs_data.channels[5] < 1100) ? 1 : 0);  // 模式：0=并翅, 1=平翅, 2=扑动
         }
 

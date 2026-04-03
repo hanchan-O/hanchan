@@ -270,26 +270,6 @@
           <WinNumber>1</WinNumber>
           <ItemText>debug_err,0x0A</ItemText>
         </Ww>
-        <Ww>
-          <count>23</count>
-          <WinNumber>1</WinNumber>
-          <ItemText>Wings_Data.Wings_motor[0]</ItemText>
-        </Ww>
-        <Ww>
-          <count>24</count>
-          <WinNumber>1</WinNumber>
-          <ItemText>front_targetR,0x0A</ItemText>
-        </Ww>
-        <Ww>
-          <count>25</count>
-          <WinNumber>1</WinNumber>
-          <ItemText>back_targetL	,0x0A</ItemText>
-        </Ww>
-        <Ww>
-          <count>26</count>
-          <WinNumber>1</WinNumber>
-          <ItemText>Wings_Data.Wings_motor[1].Target_Angle</ItemText>
-        </Ww>
       </WatchWindow1>
       <WatchWindow2>
         <Ww>

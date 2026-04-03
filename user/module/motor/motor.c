@@ -49,16 +49,16 @@ void Motor_PID_Control(void)
 	// 数组索引：[0]=右前, [1]=左后, [2]=左前, [3]=右后
 	
 	// 电机0（右前）→ M1通道
-	Wings_Data.Wings_motor[0].Target_Speed=motor_1_set_pwm=PID_calc(&motor_1_pid, Wings_Data.Wings_motor[0].Corrective_Angle , Wings_Data.Wings_motor[0].Target_Angle );
+	Wings_Data.Wings_motor[0].Target_Speed=motor_1_set_pwm=-PID_calc(&motor_1_pid, Wings_Data.Wings_motor[0].Corrective_Angle , Wings_Data.Wings_motor[0].Target_Angle );
 	
 	// 电机3（右后）→ M2通道
-	Wings_Data.Wings_motor[3].Target_Speed=motor_4_set_pwm=-PID_calc(&motor_4_pid, Wings_Data.Wings_motor[3].Corrective_Angle , Wings_Data.Wings_motor[3].Target_Angle );
+	Wings_Data.Wings_motor[3].Target_Speed=motor_4_set_pwm=PID_calc(&motor_4_pid, Wings_Data.Wings_motor[3].Corrective_Angle , Wings_Data.Wings_motor[3].Target_Angle );
 	
 	// 电机2（左前）→ M3通道
-	Wings_Data.Wings_motor[2].Target_Speed=motor_3_set_pwm=-PID_calc(&motor_3_pid, Wings_Data.Wings_motor[2].Corrective_Angle , Wings_Data.Wings_motor[2].Target_Angle );
+	Wings_Data.Wings_motor[2].Target_Speed=motor_3_set_pwm=PID_calc(&motor_3_pid, Wings_Data.Wings_motor[2].Corrective_Angle , Wings_Data.Wings_motor[2].Target_Angle );
 	
 	// 电机1（左后）→ M4通道
-	Wings_Data.Wings_motor[1].Target_Speed=motor_2_set_pwm=PID_calc(&motor_2_pid, Wings_Data.Wings_motor[1].Corrective_Angle , Wings_Data.Wings_motor[1].Target_Angle );
+	Wings_Data.Wings_motor[1].Target_Speed=motor_2_set_pwm=-PID_calc(&motor_2_pid, Wings_Data.Wings_motor[1].Corrective_Angle , Wings_Data.Wings_motor[1].Target_Angle );
 	
 	// Set_Pwm参数顺序：M1, M2, M3, M4
 	// 对应：右前(motor_1), 右后(motor_4), 左前(motor_3), 左后(motor_2)

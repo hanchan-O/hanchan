@@ -43,7 +43,7 @@
 #include <stdbool.h>
 
 // 调试模式开关 - 注释掉此行可禁用所有调试功能，节省内存
-//#define DEBUG_MODE
+#define DEBUG_MODE
 
 /* USER CODE END Includes */
 
@@ -56,10 +56,10 @@
 
 // 左右电机的基准点（中位角度//调小翅膀向上）
 // 使用const存储在Flash中，节省RAM
-const int16_t motor_front_L_midpoint = 2034;
-const int16_t motor_front_R_midpoint = 1844;
-const int16_t motor_back_L_midpoint  = 1886;
-const int16_t motor_back_R_midpoint  = 1996;
+const int16_t motor_front_L_midpoint = 2054;
+const int16_t motor_front_R_midpoint = 2030;
+const int16_t motor_back_L_midpoint  = 2060;
+const int16_t motor_back_R_midpoint  = 2000;
 
 // 调试变量 - 用于观察电机行为（仅在DEBUG_MODE定义时启用）
 #ifdef DEBUG_MODE
@@ -201,66 +201,56 @@ int main(void)
 
         if (elrs_data.Mode == 2)
         {
-            // ==================== Mode2: 优化扑动飞行模式 ====================
+            // ==================== Mode2: 完整版（带姿态控制） ====================
             static uint8_t last_mode = 255;
+            static uint32_t attitude_tick = 0;  // 姿态估计分频计时
             if (last_mode != 2) {
                 last_mode = 2;
-                heading_hold.hold_enabled = 0;  // 重置航向保持
+                reset_flap_state();  // 重置扑动状态
             }
 
-            // 步骤1: 姿态估计（每次循环都执行）
-            Estimate_Attitude();
+            // 设置 PID 参数（7.56V 高电压下降低 Kp，防止过冲震荡）
+            motor_1_pid.Kp = 15;  // 右前（原 15）
+            motor_2_pid.Kp = 15;  // 左后（原 15）
+            motor_3_pid.Kp = 12;   // 左前（原 12）
+            motor_4_pid.Kp = 12;   // 右后（原 12）
 
-            // 步骤2: 设置PID参数（统一高响应）
-            motor_1_pid.Kp = 32;
-            motor_2_pid.Kp = 32;
-            motor_3_pid.Kp = 32;
-            motor_4_pid.Kp = 32;
+            // 计算基准位置
+            const int16_t motor_front_L_ready = motor_front_L_midpoint + elrs_data.midpoint;
+            const int16_t motor_front_R_ready = motor_front_R_midpoint + elrs_data.midpoint;
+            const int16_t motor_back_L_ready  = motor_back_L_midpoint  + elrs_data.midpoint;
+            const int16_t motor_back_R_ready  = motor_back_R_midpoint  + elrs_data.midpoint;
 
-            // 步骤3: 计算基准位置（含微调偏移）
-            const int16_t motor_front_L_ready = motor_front_L_midpoint + elrs_data.midpoint + elrs_data.midpoint_1;
-            const int16_t motor_front_R_ready = motor_front_R_midpoint + elrs_data.midpoint + elrs_data.midpoint_1;
-            const int16_t motor_back_L_ready  = motor_back_L_midpoint  + elrs_data.midpoint + elrs_data.midpoint_1;
-            const int16_t motor_back_R_ready  = motor_back_R_midpoint  + elrs_data.midpoint + elrs_data.midpoint_1;
-
-            // 步骤4: 动态转向计算
+            // 动态转向计算
             TurnControl_t turn_ctrl;
             Calculate_Dynamic_Turn(elrs_data.Yaw, &turn_ctrl);
 
-            // 步骤5: 扑动频率控制
-            thr = 12;  // 可改为 elrs_data.Throttle 实现变速
+            // 扑动频率：使用Throttle通道(5-15)映射到频率
+            thr = (uint8_t)elrs_data.Throttle;  // 5-15
+            if (thr < 5) thr = 5;
+            if (thr > 15) thr = 15;
             uint32_t step_ms = Calculate_Flap_Step_Time(thr);
 
-            uint32_t tick = HAL_GetTick();
+            uint32_t current_tick = HAL_GetTick();
 
-            if ((int32_t)(tick - sm_next_tick) >= 0)
+            if ((int32_t)(current_tick - sm_next_tick) >= 0)
             {
-                // 到时间：执行扑动步进
-                Execute_Flap_Step(&turn_ctrl,
+                // 执行扑动步进
+                Execute_Flap_Step(elrs_data.Yaw, &turn_ctrl,
                                   motor_front_L_ready,
                                   motor_front_R_ready,
                                   motor_back_L_ready,
                                   motor_back_R_ready);
 
-                // 步骤6: 电机同步补偿（减小4电机差异）
-                Motor_Sync_Compensate();
-
-                // 步骤7: 姿态稳定补偿（自动平衡）
-                Attitude_Stabilize();
-
-                // 步骤8: 航向保持（摇杆回中时自动直线飞行）
-                if (abs16_fast(elrs_data.Yaw) < 50) {
-                    // Yaw摇杆在中位附近，启用航向保持
-                    Heading_Hold_Update(1);
-                    // 应用航向保持修正（叠加到Yaw输入）
-                    int16_t hold_comp = (heading_hold.heading_error * 2) / 10;
-                    // 重新计算带保持补偿的转向
-                    if (abs16_fast(hold_comp) > 5) {
-                        Calculate_Dynamic_Turn(elrs_data.Yaw - hold_comp, &turn_ctrl);
-                    }
-                } else {
-                    // Yaw摇杆偏离中位，禁用航向保持
-                    Heading_Hold_Update(0);
+                // 步骤2：姿态估计与电机同步补偿（每20ms执行一次，50Hz）
+                if ((int32_t)(current_tick - attitude_tick) >= 20) {
+                    attitude_tick = current_tick;
+                    
+                    // 姿态估计 - 计算各电机位置和差异
+                    Estimate_Attitude();
+                    
+                    // 电机同步补偿 - 使4电机保持同步
+                    Motor_Sync_Compensate();
                 }
 
                 // 安排下一次步进
@@ -282,18 +272,19 @@ int main(void)
 			static uint8_t last_mode = 255;
 			if (last_mode != 1) last_mode = 1;
 			
-			motor_1_pid.Kp = 16;  // 电机0(右前) - 增加Kp以加快响应
-			motor_2_pid.Kp = 16;  // 电机1(左后)
-			motor_3_pid.Kp = 16;  // 电机2(左前)
-			motor_4_pid.Kp = 20;  // 电机3(右后) - 增加Kp以加快响应
+			// 7.56V 高电压下降低 Kp，防止抖动
+			motor_1_pid.Kp = 10;   // 电机 0(右前)（原 12）
+			motor_2_pid.Kp = 10;   // 电机 1(左后)（原 12）
+			motor_3_pid.Kp = 10;   // 电机 2(左前)（原 12）
+			motor_4_pid.Kp = 10;   // 电机 3(右后)（原 12）
 			// 基准角计算（带转向差动）
 			// 注意：编码器值减小=翅膀上移（升力减小），编码器值增大=翅膀下移（升力增大）
 			// 左转（Yaw<0）：右翼下移（升力增大），左翼上移（升力减小）
 			// 右转（Yaw>0）：左翼下移（升力增大），右翼上移（升力减小）
-			const int16_t front_targetL = motor_front_L_midpoint + elrs_data.midpoint + elrs_data.midpoint_1 + 3*elrs_data.Yaw;
-			const int16_t front_targetR = motor_front_R_midpoint + elrs_data.midpoint + elrs_data.midpoint_1 - 3*elrs_data.Yaw;
-			const int16_t back_targetL  = motor_back_L_midpoint  + elrs_data.midpoint + elrs_data.midpoint_1 + 3*elrs_data.Yaw;
-			const int16_t back_targetR  = motor_back_R_midpoint  + elrs_data.midpoint + elrs_data.midpoint_1 - 3*elrs_data.Yaw;
+			const int16_t front_targetL = motor_front_L_midpoint + elrs_data.midpoint + elrs_data.midpoint_1 + 2*elrs_data.Yaw;
+			const int16_t front_targetR = motor_front_R_midpoint + elrs_data.midpoint + elrs_data.midpoint_1 - 2*elrs_data.Yaw;
+			const int16_t back_targetL  = motor_back_L_midpoint  + elrs_data.midpoint + elrs_data.midpoint_1 + 2*elrs_data.Yaw;
+			const int16_t back_targetR  = motor_back_R_midpoint  + elrs_data.midpoint + elrs_data.midpoint_1 - 2*elrs_data.Yaw;
 
 			// 从当前值缓慢移动到目标值
 			static uint32_t last_smooth_time = 0;
@@ -356,10 +347,10 @@ int main(void)
         else
 		{
 			// Mode0并翅模式 - 梯形速度规划改进版
-			motor_1_pid.Kp = 16;   // 电机0(右前) - 增加Kp以加快响应
-			motor_2_pid.Kp = 18;   // 电机1(左后)
-			motor_3_pid.Kp = 16;   // 电机2(左前)
-			motor_4_pid.Kp = 20;   // 电机3(右后) - 增加Kp以加快响应
+			motor_1_pid.Kp = 8;   // 电机0(右前) - 增加Kp以加快响应
+			motor_2_pid.Kp = 8;   // 电机1(左后)
+			motor_3_pid.Kp = 8;   // 电机2(左前)
+			motor_4_pid.Kp = 8;   // 电机3(右后) - 增加Kp以加快响应
 			
 			// 目标角度 - 统一为1024（竖直并翅）
 			// 注意：数组索引与电机位置的对应关系

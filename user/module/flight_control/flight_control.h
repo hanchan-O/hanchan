@@ -19,13 +19,7 @@ typedef struct {
     int16_t avg_position;   // 4电机平均位置
 } Attitude_Est_t;
 
-// 航向保持结构
-typedef struct {
-    int32_t yaw_integral;       // 偏航积分（估算航向变化）
-    int16_t heading_error;      // 航向误差
-    uint8_t hold_enabled;       // 保持使能标志
-    int16_t last_roll;          // 上次的横滚值（用于计算偏航速率）
-} Heading_Hold_t;
+
 
 // 动态转向参数
 typedef struct {
@@ -37,7 +31,6 @@ typedef struct {
 
 // 外部变量声明
 extern Attitude_Est_t attitude;
-extern Heading_Hold_t heading_hold;
 
 // ====== 定点余弦表（Q15），9点：0°~180°（步长22.5°） ======
 // 索引0=0°(cos=1.0), 索引4=90°(cos=0), 索引8=180°(cos=-1.0)
@@ -84,25 +77,7 @@ void Estimate_Attitude(void);
 **/
 void Motor_Sync_Compensate(void);
 
-/**
-************************************************************************************************
-* @brief    姿态稳定补偿 - 自动修正飞行姿态
-* @param    None
-* @return   None
-* @说明     根据横滚和俯仰角，微调电机目标角度产生恢复力矩
-************************************************************************************************
-**/
-void Attitude_Stabilize(void);
 
-/**
-************************************************************************************************
-* @brief    航向保持更新 - 自动保持直线飞行
-* @param    enable: 1=使能航向保持, 0=重置
-* @return   None
-* @说明     通过积分偏航速率估算航向变化，自动产生反向转向力矩
-************************************************************************************************
-**/
-void Heading_Hold_Update(uint8_t enable);
 
 /**
 ************************************************************************************************
@@ -127,6 +102,7 @@ uint32_t Calculate_Flap_Step_Time(uint8_t throttle);
 /**
 ************************************************************************************************
 * @brief    执行扑动步进 - 更新电机目标角度
+* @param    yaw_input: 转向输入（-100 ~ +100）
 * @param    turn_ctrl: 转向控制参数
 * @param    motor_front_L_ready: 左前电机基准位置
 * @param    motor_front_R_ready: 右前电机基准位置
@@ -135,7 +111,8 @@ uint32_t Calculate_Flap_Step_Time(uint8_t throttle);
 * @return   None
 ************************************************************************************************
 **/
-void Execute_Flap_Step(TurnControl_t* turn_ctrl,
+void Execute_Flap_Step(int16_t yaw_input,
+                       TurnControl_t* turn_ctrl,
                        int16_t motor_front_L_ready,
                        int16_t motor_front_R_ready,
                        int16_t motor_back_L_ready,
