@@ -4,7 +4,7 @@
 #include <string.h>
 /**
 ************************************************************************************************
-* @brief    ??????CRSF ???????
+* @brief    解析ELRS的CRSF协议数据
 * @param    None
 * @return   None
 * @author   hanchan	2025.11.06
@@ -46,7 +46,7 @@ float float_Map_with_median(float input_value, float input_min, float input_max,
 }
 
 /**
- * int16 ?????????????
+ * int16 类型通道值映射函数
  */
 static inline int16_t int16_Map(uint16_t x,
                                 uint16_t in_min, uint16_t in_max,
@@ -64,7 +64,7 @@ static inline int16_t int16_Map(uint16_t x,
 }
 
 /**
- * ???? int16 ??????
+ * 基于中位数的 int16 类型映射
  */
 static inline int16_t int16_Map_with_median(uint16_t x,
                                             uint16_t in_min, uint16_t in_max, uint16_t median,
@@ -84,7 +84,7 @@ static inline int16_t int16_Map_with_median(uint16_t x,
 // ----------------------------------------------------------
 
 /**
- * uint8 ????????
+ * uint8 类型通道值映射函数
  */
 static inline uint8_t int8_Map(uint16_t x,
                               uint16_t in_min, uint16_t in_max,
@@ -116,7 +116,7 @@ static inline uint8_t int8_Map_with_median(uint16_t x,
         return int8_Map(x, median, in_max, out_mid, out_max);
 }
 
-/* ???|value| < threshold ??? 0 */
+/* 当值小于阈值时返回 0 */
 static inline int16_t apply_deadzone(int16_t value, int16_t threshold)
 {
     if (value > -threshold && value < threshold) {
@@ -155,12 +155,12 @@ void ELRS_UARTE_RxCallback(uint16_t Size)
             elrs_data.channels[3] = ((uint16_t)elrs_data_temp[date_i+7] >> 1 | ((uint16_t)elrs_data_temp[date_i+8] << 7)) & 0x07FF;
             elrs_data.channels[4] = ((uint16_t)elrs_data_temp[date_i+8] >> 4 | ((uint16_t)elrs_data_temp[date_i+9] << 4)) & 0x07FF;
             elrs_data.channels[5] = ((uint16_t)elrs_data_temp[date_i+9] >> 7 | ((uint16_t)elrs_data_temp[date_i+10] << 1) | ((uint16_t)elrs_data_temp[date_i+11] << 9)) & 0x07FF;
-            /* ???channels[0]=Yaw?[1]=Pitch?[2]=Throttle?[3]=Roll?[4]=Switch?[5]=Mode */
+            /* 解析channels[0]=Yaw?[1]=Pitch?[2]=Throttle?[3]=Roll?[4]=Switch?[5]=Mode */
 
             elrs_data.Roll      = int16_Map_with_median(elrs_data.channels[3], 174, 1808, 992, -400, 400);
             elrs_data.Throttle  = int16_Map_with_median(elrs_data.channels[2], 174, 1811, 992, 5, 15);
             elrs_data.Yaw       = int16_Map_with_median(elrs_data.channels[0], 174, 1811, 992, -100, 100);
-            /* midpoint_1??? |Yaw| ???????????????? */
+            /* midpoint_1用于：|Yaw| 较小时减小中点偏移量 */
             elrs_data.midpoint_1= int16_Map_with_median(abs16_fast(elrs_data.Yaw), 0, 100, 50, 0, 30);
             elrs_data.midpoint  = apply_deadzone(int16_Map_with_median(elrs_data.channels[1], 174, 1808, 992, -80, 80), 5);
             elrs_data.Switch    = (elrs_data.channels[4] > 1500) ? 1 : 0;

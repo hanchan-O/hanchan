@@ -118,7 +118,7 @@ uint16_t limit_and_lowpass_filter(uint16_t new_value, uint8_t channel)
 void StarAndGetResult(void)
 {
 	uint16_t filtered_ad[4];
-//+++260407:jhb:?? mt6701_raw??????????????
+//+++260407:jhb:对 mt6701_raw原始值进行限幅和低通滤波处理
 	filtered_ad[0] = limit_and_lowpass_filter(mt6701_raw[0], 0);
 	filtered_ad[1] = limit_and_lowpass_filter(mt6701_raw[1], 1);
 	filtered_ad[2] = limit_and_lowpass_filter(mt6701_raw[2], 2);

@@ -12,30 +12,30 @@
 
 typedef struct {
     struct {
-        uint16_t Corrective_Angle;   /* ????????? */
-        int16_t Target_Angle;        /* ??? PID ??? */
-        int16_t Target_Speed;        /* ??? PID ???PWM ?? */
-        /* ????????? */
-        /* int16_t Magnet_Flag;     ???0 ?? 1 ?? 2 ?? */
-        /* int16_t Raw_Angle;       ?? 0-4095 */
-        /* int16_t Speed;           ??? */
-        /* int32_t Position;        ???? */
-    } Wings_motor[4];   /* [0]..[3] ?????? */
+        uint16_t Corrective_Angle;   /* 编码器校准角度 */
+        int16_t Target_Angle;        /* 目标 PID 输入 */
+        int16_t Target_Speed;        /* 目标 PID 输出PWM 值 */
+        /* 以下为预留字段 */
+        /* int16_t Magnet_Flag;     磁铁状态0 无 1 有 2 强 */
+        /* int16_t Raw_Angle;       原始 0-4095 */
+        /* int16_t Speed;           原始速度 */
+        /* int32_t Position;        累计位置 */
+    } Wings_motor[4];   /* [0]..[3] 对应电机序号 */
 
 } WINGS_DATA;
 
 extern WINGS_DATA Wings_Data;
 extern pid_type_def motor_1_pid,motor_2_pid,motor_3_pid,motor_4_pid;
-/* PID ????static const????????? */
+/* PID 参数使用static const定义便于调试 */
 static const float motor_pid_params[4][3] = {
     /* {Kp, Ki, Kd} */
-    {20.0f, 0.0f, 0.0f},  /* ?? 0 */
-    {15.0f, 0.0f, 0.0f},  /* ?? 1 */
-    {20.0f, 0.0f, 0.0f},  /* ?? 2 */
-    {15.0f, 0.0f, 0.0f}   /* ?? 3 */
+    {20.0f, 0.0f, 0.0f},  /* 电机 0 */
+    {15.0f, 0.0f, 0.0f},  /* 电机 1 */
+    {20.0f, 0.0f, 0.0f},  /* 电机 2 */
+    {15.0f, 0.0f, 0.0f}   /* 电机 3 */
 };
 
-/* ??????? PID ?? */
+/* 电机 PWM 参数配置宏定义 */
 #define MOTOR_1_SPEED_PID_KP motor_pid_params[0][0]
 #define MOTOR_1_SPEED_PID_KI motor_pid_params[0][1]
 #define MOTOR_1_SPEED_PID_KD motor_pid_params[0][2]
@@ -76,18 +76,18 @@ static const float motor_pid_params[4][3] = {
 /*------------------------------------*/
 
 extern void Motor_PID_Control(void);
-/* ?????Target_Angle ??????????? PID */
+/* 扑翼模式：Target_Angle 直接控制并输出修正后的 PID */
 extern void Motor_PID_Control_Flap(void);
-/* ?????? Target_Angle ? slew ????? PID */
+/* 扑翼模式：Target_Angle 加上 slew 限幅后再输出 PID */
 extern void Motor_Flap_Slew_Reset(void);
 extern void Chassis_PID_Init(void);
 extern void Set_Pwm(int16_t motor1_out, int16_t motor2_out, int16_t motor3_out, int16_t motor4_out);
 extern uint16_t myabs(int16_t a);
 extern void Motor_ECD_Control(void);
 
-/* int16 ????? */
+/* int16 快速绝对值函数 */
 static inline uint16_t abs16_fast(int16_t x) {
-    int16_t m = x >> 15;            /* x<0 ? -1?x>=0 ? 0 */
-    return (uint16_t)((x ^ m) - m); /* ?? abs(x) */
+    int16_t m = x >> 15;            /* x<0 时返回 -1，否则返回 0 */
+    return (uint16_t)((x ^ m) - m); /* 计算 abs(x) */
 }
 #endif

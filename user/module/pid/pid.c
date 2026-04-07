@@ -1,7 +1,7 @@
 #include "pid.h"
 #include "main.h"
 
-/* ????????? |??| ???????? Ki*e?????????? */
+/* 积分分离阈值：当误差绝对值大于此值时不使用 Ki*e积分项 */
 #define INTEGRAL_SEPARATION_THRESHOLD 200.0f
 
 #define LimitMax(input, max)   \
@@ -17,7 +17,7 @@
     }
 
 /**
-  * @brief          ??? PID ???
+  * @brief          初始化 PID 参数
   */
 void PID_init(pid_type_def *pid, uint8_t mode, const fp32 PID[3], fp32 max_out, fp32 max_iout)
 {
@@ -36,7 +36,7 @@ void PID_init(pid_type_def *pid, uint8_t mode, const fp32 PID[3], fp32 max_out, 
 }
 
 /**
-  * @brief          PID ??
+  * @brief          PID 计算
   */
 fp32 PID_calc(pid_type_def *pid, fp32 ref, fp32 set)
 {
@@ -54,7 +54,7 @@ fp32 PID_calc(pid_type_def *pid, fp32 ref, fp32 set)
     {
         pid->Pout = pid->Kp * pid->error[0];
 
-        /* ??????? |??| ??????? Ki*e */
+        /* 积分分离：当误差绝对值在阈值内时才累加积分项 */
         if (pid->Ki != 0.0f && fabsf(pid->error[0]) < INTEGRAL_SEPARATION_THRESHOLD)
         {
             pid->Iout += pid->Ki * pid->error[0];
@@ -83,7 +83,7 @@ fp32 PID_calc(pid_type_def *pid, fp32 ref, fp32 set)
 }
 
 /**
-  * @brief          ?? PID ???????
+  * @brief          重置 PID 参数
   */
 void PID_clear(pid_type_def *pid)
 {

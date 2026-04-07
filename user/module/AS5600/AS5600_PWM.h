@@ -3,7 +3,7 @@
 #include "main.h"
 
 #define MAX_VALUE 4095
-//+++260407:hww:????????MT6701 PWM ????
+//+++260407:hww:电机中点角度配置MT6701 PWM 编码器
 #define MOTOR1_MIDPOINT 954
 #define MOTOR2_MIDPOINT 134
 #define MOTOR3_MIDPOINT 2322

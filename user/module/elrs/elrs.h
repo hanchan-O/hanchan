@@ -1,29 +1,29 @@
 #ifndef __ELRS_H__
 #define __ELRS_H__
 #include "main.h"
-#define MAX_FRAME_SIZE 36 /* ????????????? */
+#define MAX_FRAME_SIZE 36 /* CRSF帧最大长度 */
 
 /*
- * https://github.com/crsf-wg/crsf/wiki/Packet-Types  CRSF ???????
+ * https://github.com/crsf-wg/crsf/wiki/Packet-Types  CRSF 协议定义
  */
 /*
- * ?????????/??????????
- * ??1???? X
- * ??2???? Y
- * ??3???? Y
- * ??4???? X
- * ??5??? A
- * ??6??? B
- * ??7??? C
- * ??8??? D
- * ??9????
- * ??10????
- * ??11???? A
- * ??12???? B
- * ??13~16???
+ * 通道1~4对应摇杆X/Y轴
+ * 通道1：右摇杆 X
+ * 通道2：右摇杆 Y
+ * 通道3：左摇杆 Y
+ * 通道4：左摇杆 X
+ * 通道5：拨杆 A
+ * 通道6：拨杆 B
+ * 通道7：拨杆 C
+ * 通道8：拨杆 D
+ * 通道9：拨杆 E
+ * 通道10：拨杆 F
+ * 通道11：拨杆 G
+ * 通道12：拨杆 H
+ * 通道13~16：预留
  */
 /*
- * ?????? + ?? + ?? + ?? + CRC
+ * 帧结构 = 地址 + 长度 + 类型 + 数据 + CRC
  */
 
 /* CRSF ??? */
@@ -61,23 +61,23 @@
 #define CRSF_ADDRESS_CRSF_RECEIVER 0xEC
 #define CRSF_ADDRESS_CRSF_TRANSMITTER 0xEE
 
-#define CHANNELS_Frame_Length 0x18 /* RC ??????? */
-#define LINK_Frame_Length 0x0C     /* ??????? */
+#define CHANNELS_Frame_Length 0x18 /* RC 通道数据帧长度 */
+#define LINK_Frame_Length 0x0C     /* 链路状态帧长度 */
 
-/* Failsafe?????????????? */
+/* Failsafe超时时间，单位毫秒 */
 #define SIGNAL_TIMEOUT_MS 500
 
 typedef struct
 {
-    int16_t 	Yaw;             /* ?? -100~+100 */
-    uint16_t 	Throttle;       /* ???? 5~15 */
-    int16_t 	Roll;            /* ?? -400~+400 */
-    int16_t		midpoint;        /* ???? -80~+80 */
-    int8_t		midpoint_1;      /* Yaw ?? 0~30 */
-    uint8_t 	Switch;          /* ???? 0/1 */
-    uint8_t 	Mode;            /* 0=?? 1=?? 2=?? */
+    int16_t 	Yaw;             /* 偏航 -100~+100 */
+    uint16_t 	Throttle;       /* 油门 5~15 */
+    int16_t 	Roll;            /* 横滚 -400~+400 */
+    int16_t		midpoint;        /* 俯仰 -80~+80 */
+    int8_t		midpoint_1;      /* Yaw 相关 0~30 */
+    uint8_t 	Switch;          /* 开关量 0/1 */
+    uint8_t 	Mode;            /* 0=手动 1=半自动 2=自动 */
 
-    uint16_t channels[16];      /* 16 ?????????? */
+    uint16_t channels[16];      /* 16 通道原始 CRSF 数据 */
 
 } ELRS_Data;
 
