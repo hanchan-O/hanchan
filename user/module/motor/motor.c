@@ -1,16 +1,16 @@
 #include "motor.h"
 /**
 ************************************************************************************************
-* @brief    底盘运动控制算法
+* @brief    ??? PID ? PWM ??
 * @param    None
 * @return   None
 * @author   hanchan		2025.12.28
 ************************************************************************************************
 **/
-// 外部变量声明
+/* ???? */
 WINGS_DATA Wings_Data;
 
-/************ 运动速度变量定义 *************/
+/************ ??? PWM ??????? *************/
 
 int motor_1_set_pwm;
 int motor_2_set_pwm;
@@ -18,13 +18,13 @@ int motor_3_set_pwm;
 int motor_4_set_pwm;
 
 
-/************ PID结构体变量定义 *************/
+/************ ????? PID ?? *************/
 pid_type_def motor_1_pid,motor_2_pid,motor_3_pid,motor_4_pid;
-/************** 速度PID限幅定义 *************/
-const float motore_max_out=12000,motor_max_iout=4095; //速度环输出限幅 积分输出限幅
+/************** ?? PID ???? *************/
+const float motore_max_out=12000,motor_max_iout=4095; /* ???????? */
 
 
-/**底盘PID初始化**/
+/** ????? PID ?? **/
 void Chassis_PID_Init(void) 
 {
 	const float motor_1_speed_pid[3] = {MOTOR_1_SPEED_PID_KP, MOTOR_1_SPEED_PID_KI, MOTOR_1_SPEED_PID_KD};
@@ -39,68 +39,124 @@ void Chassis_PID_Init(void)
 
 
 
+/* ---------- ?????????????????????? ---------- */
+#define FLAP_SLEW_PER_MS  140  /* ??????????????? */
 
+static int16_t flap_slew_pos[4];
+static uint32_t flap_slew_last_ms;
 
-/*************** 底盘PID控制 ****************/
+void Motor_Flap_Slew_Reset(void)
+{
+	for (uint8_t i = 0; i < 4; i++)
+		flap_slew_pos[i] = (int16_t)Wings_Data.Wings_motor[i].Corrective_Angle;
+	flap_slew_last_ms = HAL_GetTick();
+}
+
+static void Motor_Flap_Slew_Update(void)
+{
+	uint32_t now = HAL_GetTick();
+	uint32_t dt = now - flap_slew_last_ms;
+	if (dt == 0)
+		return;
+	if (dt > 20U)
+		dt = 20U;
+	flap_slew_last_ms = now;
+
+	int32_t max_step = (int32_t)FLAP_SLEW_PER_MS * (int32_t)dt;
+	if (max_step < 1)
+		max_step = 1;
+	if (max_step > 8000)
+		max_step = 8000;
+
+	for (uint8_t i = 0; i < 4; i++)
+	{
+		int16_t cmd = Wings_Data.Wings_motor[i].Target_Angle;
+		int32_t delta = (int32_t)cmd - (int32_t)flap_slew_pos[i];
+		if (delta > max_step)
+			flap_slew_pos[i] += (int16_t)max_step;
+		else if (delta < -max_step)
+			flap_slew_pos[i] -= (int16_t)max_step;
+		else
+			flap_slew_pos[i] = cmd;
+	}
+}
+
+void Motor_PID_Control_Flap(void)
+{
+	Motor_Flap_Slew_Update();
+
+	Wings_Data.Wings_motor[0].Target_Speed = motor_1_set_pwm =
+	    -PID_calc(&motor_1_pid, Wings_Data.Wings_motor[0].Corrective_Angle, flap_slew_pos[0]);
+
+	Wings_Data.Wings_motor[3].Target_Speed = motor_4_set_pwm =
+	    -PID_calc(&motor_4_pid, Wings_Data.Wings_motor[3].Corrective_Angle, flap_slew_pos[3]);
+
+	Wings_Data.Wings_motor[2].Target_Speed = motor_3_set_pwm =
+	    PID_calc(&motor_3_pid, Wings_Data.Wings_motor[2].Corrective_Angle, flap_slew_pos[2]);
+
+	Wings_Data.Wings_motor[1].Target_Speed = motor_2_set_pwm =
+	    PID_calc(&motor_2_pid, Wings_Data.Wings_motor[1].Corrective_Angle, flap_slew_pos[1]);
+
+	Set_Pwm(motor_1_set_pwm, motor_4_set_pwm, motor_3_set_pwm, motor_2_set_pwm);
+}
+
+/*************** ??????? PID ****************/
 void Motor_PID_Control(void)
 {
-	// 根据硬件接线调整PWM输出映射：
-	// 硬件接线：M1=右前, M2=右后, M3=左前, M4=左后
-	// 数组索引：[0]=右前, [1]=左后, [2]=左前, [3]=右后
+	/* ?????? PWM???? M1~M4 ? Set_Pwm */
+	/* Wings_motor ?? [0]..[3] ? PCB ?????? */
 	
-	// 电机0（右前）→ M1通道
+	/* ?? 0 ? PID ?? -> M1 */
 	Wings_Data.Wings_motor[0].Target_Speed=motor_1_set_pwm=-PID_calc(&motor_1_pid, Wings_Data.Wings_motor[0].Corrective_Angle , Wings_Data.Wings_motor[0].Target_Angle );
 	
-	// 电机3（右后）→ M2通道
-	Wings_Data.Wings_motor[3].Target_Speed=motor_4_set_pwm=PID_calc(&motor_4_pid, Wings_Data.Wings_motor[3].Corrective_Angle , Wings_Data.Wings_motor[3].Target_Angle );
+	/* ?? 3 ? PID ?? -> M2 */
+	Wings_Data.Wings_motor[3].Target_Speed=motor_4_set_pwm=-PID_calc(&motor_4_pid, Wings_Data.Wings_motor[3].Corrective_Angle , Wings_Data.Wings_motor[3].Target_Angle );
 	
-	// 电机2（左前）→ M3通道
+	/* ?? 2 ? PID ?? -> M3 */
 	Wings_Data.Wings_motor[2].Target_Speed=motor_3_set_pwm=PID_calc(&motor_3_pid, Wings_Data.Wings_motor[2].Corrective_Angle , Wings_Data.Wings_motor[2].Target_Angle );
 	
-	// 电机1（左后）→ M4通道
-	Wings_Data.Wings_motor[1].Target_Speed=motor_2_set_pwm=-PID_calc(&motor_2_pid, Wings_Data.Wings_motor[1].Corrective_Angle , Wings_Data.Wings_motor[1].Target_Angle );
+	/* ?? 1 ? PID ?? -> M4 */
+	Wings_Data.Wings_motor[1].Target_Speed=motor_2_set_pwm=PID_calc(&motor_2_pid, Wings_Data.Wings_motor[1].Corrective_Angle , Wings_Data.Wings_motor[1].Target_Angle );
 	
-	// Set_Pwm参数顺序：M1, M2, M3, M4
-	// 对应：右前(motor_1), 右后(motor_4), 左前(motor_3), 左后(motor_2)
+	/* Set_Pwm( M1, M2, M3, M4 )?????? motor_1, motor_4, motor_3, motor_2 */
 	Set_Pwm(motor_1_set_pwm, motor_4_set_pwm, motor_3_set_pwm, motor_2_set_pwm);
 }
 
 /**************************************************************************
-Function: Assign a value to the PWM register to control wheel speed and direction
-Input   : motor1_out - 电机1输出值, motor2_out - 电机2输出值
-          motor3_out - 电机3输出值, motor4_out - 电机4输出值
+Function: ??? PID ?????? PWM ??
+Input   : motor1_out..motor4_out ???? PID ???????
 Output  : none
-函数功能：赋值给PWM寄存器，控制四个转速与方向
-入口参数：motor1_out - 电机1输出值（来自Wings_Data的PID计算）
-          motor2_out - 电机2输出值
-          motor3_out - 电机3输出值  
-          motor4_out - 电机4输出值
-返回  值：无
 **************************************************************************/
 
 
 
 void Set_Pwm(int16_t m1, int16_t m2, int16_t m3, int16_t m4)
 {
-   // -------- Motor 1 --------
+#if !MOTOR_HW_USE_PWM_TIM2_CH12
+	m1 = 0;
+#endif
+#if !MOTOR_HW_USE_PWM_TIM3_CH34
+	m4 = 0;
+#endif
+   /* -------- Motor 1 -------- */
     uint16_t pwm1  = abs16_fast(m1);
-    uint16_t mask1 = (uint16_t)-(m1 > 0);      // >0 为 0xFFFF；<=0 为 0x0000
-    PWM_M1_2 = (uint16_t)(pwm1 & mask1);       // 反转：CH2=pwm
-    PWM_M1_1 = (uint16_t)(pwm1 & ~mask1);      // 正/停：CH1=pwm
+    uint16_t mask1 = (uint16_t)-(m1 > 0);      /* >0 ? 0xFFFF?<=0 ? 0 */
+    PWM_M1_2 = (uint16_t)(pwm1 & mask1);       /* ????CH2=pwm */
+    PWM_M1_1 = (uint16_t)(pwm1 & ~mask1);      /* ????CH1=pwm */
 
-    // -------- Motor 2 --------
+    /* -------- Motor 2 -------- */
     uint16_t pwm2  = abs16_fast(m2);
     uint16_t mask2 = (uint16_t)-(m2 > 0);
     PWM_M2_2 = (uint16_t)(pwm2 & mask2);
     PWM_M2_1 = (uint16_t)(pwm2 & ~mask2);
 
-    // -------- Motor 3 --------
+    /* -------- Motor 3 -------- */
     uint16_t pwm3  = abs16_fast(m3);
     uint16_t mask3 = (uint16_t)-(m3 > 0);
     PWM_M3_2 = (uint16_t)(pwm3 & mask3);
     PWM_M3_1 = (uint16_t)(pwm3 & ~mask3);
 
-    // -------- Motor 4 --------
+    /* -------- Motor 4 -------- */
     uint16_t pwm4  = abs16_fast(m4);
     uint16_t mask4 = (uint16_t)-(m4 > 0);
     PWM_M4_2 = (uint16_t)(pwm4 & mask4);

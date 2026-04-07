@@ -22,13 +22,28 @@
 
 /* USER CODE BEGIN 0 */
 
+/*
+ * 定时器与硬件对应关系（STM32G031G8U6）：
+ *
+ * TIM1 — 四通道输入捕获（MT6701 x4），AF1。
+ *   CH1/CH2：PA0/PA1 或 PA8/PA9（二选一，见 tim.h 中 MT6701_TIM1_CH12_USE_PA8_PA9）
+ *   CH3/CH4：PA10 / PA11（TIM1 上 CH3/CH4 的可用脚位；PA8/9 不是 CH3/4）
+ *   计数：TIM1CLK≈PCLK1=64MHz，PSC=63 → 1MHz（1tick≈1?s）。用于测量 PWM 高电平与周期。
+ *   MT6701 PWM 载频以芯片手册/OTP 为准，常见为 kHz 量级；若 PWM 周期过短（<50?s），需减小 PSC 或提高 TIM 时钟。
+ *
+ * TIM14 — 原 TIM1 内部时基：TIM14_IRQn，无 GPIO。
+ *
+ * TIM2 / TIM3 — 电机 PWM。
+ */
+
 /* USER CODE END 0 */
 
-TIM_HandleTypeDef htim1;
-TIM_HandleTypeDef htim2;
-TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim1;  /* TIM1：MT6701 四路 PWM 输入捕获 */
+TIM_HandleTypeDef htim2;  /* TIM2：M1/M2 四路 PWM */
+TIM_HandleTypeDef htim3;  /* TIM3：M3/M4 四路 PWM */
+TIM_HandleTypeDef htim14; /* TIM14：原 TIM1 时基节拍 */
 
-/* TIM1 init function */
+/* TIM1 init — 四路输入捕获，引脚见 tim.h（MT6701_PIN_CHx） */
 void MX_TIM1_Init(void)
 {
 
@@ -38,18 +53,19 @@ void MX_TIM1_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_IC_InitTypeDef sConfigIC = {0};
 
   /* USER CODE BEGIN TIM1_Init 1 */
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 64-1;
+  htim1.Init.Prescaler = 64 - 1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 64000-1;
+  htim1.Init.Period = 0xFFFF;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  if (HAL_TIM_IC_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -65,12 +81,47 @@ void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
+  sConfigIC.ICPolarity = TIM_ICPOLARITY_BOTHEDGE;
+  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
+  sConfigIC.ICFilter = 8;
+  if (HAL_TIM_IC_ConfigChannel(&htim1, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_IC_ConfigChannel(&htim1, &sConfigIC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_IC_ConfigChannel(&htim1, &sConfigIC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_IC_ConfigChannel(&htim1, &sConfigIC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM1_Init 2 */
 
   /* USER CODE END TIM1_Init 2 */
 
 }
-/* TIM2 init function */
+
+/* TIM14 init — 替代原 TIM1 纯时基（约 64ms 更新周期，与旧配置一致） */
+void MX_TIM14_Init(void)
+{
+  htim14.Instance = TIM14;
+  htim14.Init.Prescaler = 64 - 1;
+  htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim14.Init.Period = 64000 - 1;
+  htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+/* TIM2 init function — PWM：M1(CH1/CH2)、M2(CH3/CH4)，引脚见 HAL_TIM_MspPostInit(TIM2) */
 void MX_TIM2_Init(void)
 {
 
@@ -126,7 +177,7 @@ void MX_TIM2_Init(void)
   HAL_TIM_MspPostInit(&htim2);
 
 }
-/* TIM3 init function */
+/* TIM3 init function — PWM：M3(CH1/CH2)、M4(CH3/CH4)，引脚见 HAL_TIM_MspPostInit(TIM3) */
 void MX_TIM3_Init(void)
 {
 
@@ -186,31 +237,11 @@ void MX_TIM3_Init(void)
 void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* tim_baseHandle)
 {
 
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
-  if(tim_baseHandle->Instance==TIM1)
+  if (tim_baseHandle->Instance == TIM14)
   {
-  /* USER CODE BEGIN TIM1_MspInit 0 */
-
-  /* USER CODE END TIM1_MspInit 0 */
-
-  /** Initializes the peripherals clocks
-  */
-    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_TIM1;
-    PeriphClkInit.Tim1ClockSelection = RCC_TIM1CLKSOURCE_PCLK1;
-    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-    {
-      Error_Handler();
-    }
-
-    /* TIM1 clock enable */
-    __HAL_RCC_TIM1_CLK_ENABLE();
-
-    /* TIM1 interrupt Init */
-    HAL_NVIC_SetPriority(TIM1_BRK_UP_TRG_COM_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(TIM1_BRK_UP_TRG_COM_IRQn);
-  /* USER CODE BEGIN TIM1_MspInit 1 */
-
-  /* USER CODE END TIM1_MspInit 1 */
+    __HAL_RCC_TIM14_CLK_ENABLE();
+    HAL_NVIC_SetPriority(TIM14_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(TIM14_IRQn);
   }
 }
 
@@ -223,7 +254,7 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
 
   /* USER CODE END TIM2_MspInit 0 */
 
-    /* TIM2 clock enable */
+    /* TIM2 外设时钟 — 用于 M1/M2 四路 PWM */
     __HAL_RCC_TIM2_CLK_ENABLE();
   /* USER CODE BEGIN TIM2_MspInit 1 */
 
@@ -235,7 +266,7 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
 
   /* USER CODE END TIM3_MspInit 0 */
 
-    /* TIM3 clock enable */
+    /* TIM3 外设时钟 — 用于 M3/M4 四路 PWM */
     __HAL_RCC_TIM3_CLK_ENABLE();
   /* USER CODE BEGIN TIM3_MspInit 1 */
 
@@ -253,25 +284,25 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
   /* USER CODE END TIM2_MspPostInit 0 */
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
-    /**TIM2 GPIO Configuration
-    PA2     ------> TIM2_CH3
-    PA3     ------> TIM2_CH4
-    PA15     ------> TIM2_CH1
-    PB3     ------> TIM2_CH2
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    /**TIM2 GPIO Configuration（AF2）
+     * PA15 TIM2_CH1 (M1_1)，PB3 TIM2_CH2 (M1_2)
+     * PC6 TIM2_CH3 (M2_1) — 从 PA2 迁出，避免与 USART2_TX 等占用 PA2
+     * PA3 TIM2_CH4 (M2_2) — 若 PA3 仍要做串口 RX，则不能与 CH4 共用，需把串口 RX 改脚
     */
-    GPIO_InitStruct.Pin =  PWM_M2_1_Pin|PWM_M2_2_Pin|PWM_M1_1_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF2_TIM2;
-    HAL_GPIO_Init(PWM_M1_1_GPIO_Port, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = PWM_M1_1_Pin | PWM_M2_2_Pin;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     GPIO_InitStruct.Pin = PWM_M1_2_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF2_TIM2;
     HAL_GPIO_Init(PWM_M1_2_GPIO_Port, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = PWM_M2_1_Pin;
+    HAL_GPIO_Init(PWM_M2_1_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN TIM2_MspPostInit 1 */
 
@@ -285,8 +316,12 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
 
     __HAL_RCC_GPIOB_CLK_ENABLE();
     /**TIM3 GPIO Configuration
-    PB4     ------> TIM3_CH1
-    PB5     ------> TIM3_CH2
+     * 硬件：PB4/ PB5/ PB0/ PB1 复用为 TIM3 四路 PWM（AF1）。
+     * 电机：CH1+CH2→M3，CH3+CH4→M4（与 main.h 中 PWM_M3_*、PWM_M4_* 一致）。
+    PB4     ------> TIM3_CH1  (M3_1)
+    PB5     ------> TIM3_CH2  (M3_2)
+    PB0     ------> TIM3_CH3  (M4_1)
+    PB1     ------> TIM3_CH4  (M4_2)
     */
     GPIO_InitStruct.Pin = PWM_M4_1_Pin|PWM_M4_2_Pin|PWM_M3_1_Pin|PWM_M3_2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -305,19 +340,10 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
 void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
 {
 
-  if(tim_baseHandle->Instance==TIM1)
+  if (tim_baseHandle->Instance == TIM14)
   {
-  /* USER CODE BEGIN TIM1_MspDeInit 0 */
-
-  /* USER CODE END TIM1_MspDeInit 0 */
-    /* Peripheral clock disable */
-    __HAL_RCC_TIM1_CLK_DISABLE();
-
-    /* TIM1 interrupt Deinit */
-    HAL_NVIC_DisableIRQ(TIM1_BRK_UP_TRG_COM_IRQn);
-  /* USER CODE BEGIN TIM1_MspDeInit 1 */
-
-  /* USER CODE END TIM1_MspDeInit 1 */
+    __HAL_RCC_TIM14_CLK_DISABLE();
+    HAL_NVIC_DisableIRQ(TIM14_IRQn);
   }
 }
 
@@ -349,5 +375,48 @@ void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef* tim_pwmHandle)
 }
 
 /* USER CODE BEGIN 1 */
+
+void HAL_TIM_IC_MspInit(TIM_HandleTypeDef *htim)
+{
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  if (htim->Instance != TIM1)
+  {
+    return;
+  }
+
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_TIM1;
+  PeriphClkInit.Tim1ClockSelection = RCC_TIM1CLKSOURCE_PCLK1;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  __HAL_RCC_TIM1_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  GPIO_InitStruct.Pin = MT6701_GPIO_PIN_MASK;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF1_TIM1;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  HAL_NVIC_SetPriority(TIM1_CC_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(TIM1_CC_IRQn);
+}
+
+void HAL_TIM_IC_MspDeInit(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance != TIM1)
+  {
+    return;
+  }
+
+  HAL_NVIC_DisableIRQ(TIM1_CC_IRQn);
+  HAL_GPIO_DeInit(GPIOA, MT6701_GPIO_PIN_MASK);
+  __HAL_RCC_TIM1_CLK_DISABLE();
+}
 
 /* USER CODE END 1 */

@@ -1,0 +1,31 @@
+  /* USER CODE BEGIN 2 */
+	/* TIM2：四路 PWM，电机 M1/M2（通道 CH1～CH4） */
+	HAL_TIM_Base_Start(&htim2);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
+
+	/* TIM3：四路 PWM，电机 M3/M4（通道 CH1～CH4） */
+	HAL_TIM_Base_Start(&htim3);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+
+	/* TIM14：定时基准 + 周期中断（原 TIM1 时基已迁至 TIM14，见 tim.c） */
+	HAL_TIM_Base_Start_IT(&htim14);
+
+	/* TIM1：四通道输入捕获，四路 MT6701 编码器 PWM 脉宽测量 */
+	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
+	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_2);
+	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_3);
+	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_4);
+
+	/* 上电后延时，等待电源与外设稳定 */
+	HAL_Delay(1000);
+	/* 再次初始化 USART1（PB6/PB7），供 ELRS 接收机串口 */
+	MX_USART1_UART_Init();
+	ELRS_Init();			/* ELRS 接收机协议与状态初始化 */
+	Chassis_PID_Init();		/* 底盘电机 PID 参数与状态初始化 */
+  /* USER CODE END 2 */

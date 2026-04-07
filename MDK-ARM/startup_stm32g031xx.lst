@@ -356,11 +356,11 @@ ARM Macro Assembler    Page 6
               00000000 
               00000000 
 Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M0+ --apcs=inter
-work --depend=fly\startup_stm32g031xx.d -ofly\startup_stm32g031xx.o -I.\RTE\_fl
-y -I"D:\Program Files\Keil_v5-arm\ARM\Packs\ARM\CMSIS\6.1.0\CMSIS\Core\Include"
- --predefine="__MICROLIB SETA 1" --predefine="__UVISION_VERSION SETA 542" --pre
-define="STM32G031xx SETA 1" --predefine="_RTE_ SETA 1" --list=startup_stm32g031
-xx.lst startup_stm32g031xx.s
+work --depend=fly\startup_stm32g031xx.d -ofly\startup_stm32g031xx.o -IF:\远程同
+步T14P\设计\未定型设计\蝴蝶\软件\四电机\hanchan旧\hanchan\MDK-ARM\RTE -I"D:\Pro
+gram Files\Keil_arm\ARM\PACK\ARM\CMSIS\4.3.0\CMSIS\Include" --predefine="__MICR
+OLIB SETA 1" --predefine="__UVISION_VERSION SETA 515" --predefine="_RTE_ SETA 1
+" --list=startup_stm32g031xx.lst startup_stm32g031xx.s
 
 
 
@@ -878,4 +878,4 @@ Symbol: __main
       At line 123 in file startup_stm32g031xx.s
 Comment: __main used once
 2 symbols
-387 symbols in table
+386 symbols in table

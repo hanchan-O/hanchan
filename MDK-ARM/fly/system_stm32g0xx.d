@@ -2,7 +2,7 @@ fly\system_stm32g0xx.o: ../Core/Src/system_stm32g0xx.c
 fly\system_stm32g0xx.o: ../Drivers/CMSIS/Device/ST/STM32G0xx/Include/stm32g0xx.h
 fly\system_stm32g0xx.o: ../Drivers/CMSIS/Device/ST/STM32G0xx/Include/stm32g031xx.h
 fly\system_stm32g0xx.o: ../Drivers/CMSIS/Include/core_cm0plus.h
-fly\system_stm32g0xx.o: D:\Program Files\Keil_v5-arm\ARM\ARM_Compiler_5.06u7\Bin\..\include\stdint.h
+fly\system_stm32g0xx.o: D:\Program Files\Keil_arm\ARM\ARMCC\Bin\..\include\stdint.h
 fly\system_stm32g0xx.o: ../Drivers/CMSIS/Include/cmsis_version.h
 fly\system_stm32g0xx.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 fly\system_stm32g0xx.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -14,7 +14,7 @@ fly\system_stm32g0xx.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_rcc.h
 fly\system_stm32g0xx.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_def.h
 fly\system_stm32g0xx.o: ../Drivers/CMSIS/Device/ST/STM32G0xx/Include/stm32g0xx.h
 fly\system_stm32g0xx.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-fly\system_stm32g0xx.o: D:\Program Files\Keil_v5-arm\ARM\ARM_Compiler_5.06u7\Bin\..\include\stddef.h
+fly\system_stm32g0xx.o: D:\Program Files\Keil_arm\ARM\ARMCC\Bin\..\include\stddef.h
 fly\system_stm32g0xx.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_ll_rcc.h
 fly\system_stm32g0xx.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_rcc_ex.h
 fly\system_stm32g0xx.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_gpio.h

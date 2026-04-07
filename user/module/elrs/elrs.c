@@ -1,13 +1,13 @@
 #include "elrs.h"
 #include "usart.h"
 #include "motor.h"
-#include <string.h> 
+#include <string.h>
 /**
 ************************************************************************************************
-* @brief    遥控器接收机通道函数
+* @brief    ??????CRSF ???????
 * @param    None
 * @return   None
-* @author  hanchan	2025.11.06
+* @author   hanchan	2025.11.06
 ************************************************************************************************
 **/
 float float_Map(float input_value, float input_min, float input_max, float output_min, float output_max)
@@ -46,19 +46,17 @@ float float_Map_with_median(float input_value, float input_min, float input_max,
 }
 
 /**
- * 高速 int16_t 线性映射（带上下限钳位）
+ * int16 ?????????????
  */
 static inline int16_t int16_Map(uint16_t x,
                                 uint16_t in_min, uint16_t in_max,
                                 int16_t out_min, int16_t out_max)
 {
-    if (in_max <= in_min) return out_min;  // 避免除零和参数错误
+    if (in_max <= in_min) return out_min;
 
-    // 钳位输入值
     if (x < in_min) x = in_min;
     else if (x > in_max) x = in_max;
 
-    // 用 32 位防溢出
     int32_t num   = (int32_t)(x - in_min) * (out_max - out_min);
     int32_t denom = (int32_t)(in_max - in_min);
 
@@ -66,7 +64,7 @@ static inline int16_t int16_Map(uint16_t x,
 }
 
 /**
- * 带中位点的高速 int16_t 版本
+ * ???? int16 ??????
  */
 static inline int16_t int16_Map_with_median(uint16_t x,
                                             uint16_t in_min, uint16_t in_max, uint16_t median,
@@ -86,7 +84,7 @@ static inline int16_t int16_Map_with_median(uint16_t x,
 // ----------------------------------------------------------
 
 /**
- * 高速 int8_t 线性映射（带钳位）
+ * uint8 ????????
  */
 static inline uint8_t int8_Map(uint16_t x,
                               uint16_t in_min, uint16_t in_max,
@@ -118,7 +116,7 @@ static inline uint8_t int8_Map_with_median(uint16_t x,
         return int8_Map(x, median, in_max, out_mid, out_max);
 }
 
-// 死区处理函数：当值在[-threshold, threshold]范围内时返回0
+/* ???|value| < threshold ??? 0 */
 static inline int16_t apply_deadzone(int16_t value, int16_t threshold)
 {
     if (value > -threshold && value < threshold) {
@@ -129,10 +127,13 @@ static inline int16_t apply_deadzone(int16_t value, int16_t threshold)
 extern DMA_HandleTypeDef hdma_usart1_rx;
 
 uint8_t elrs_data_temp[36] = {0};
+
+volatile uint32_t last_signal_time = 0;
+
 void ELRS_Init(void)
 {
-    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, elrs_data_temp, MAX_FRAME_SIZE); // 启用空闲中断接收
-    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);                      // 关闭DMA传输过半中断
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, elrs_data_temp, MAX_FRAME_SIZE);
+    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 }
 
 ELRS_Data elrs_data;
@@ -146,7 +147,7 @@ void ELRS_UARTE_RxCallback(uint16_t Size)
         if (0)
         {
         }
-        else if (elrs_data_temp[date_i+2] == CRSF_FRAMETYPE_RC_CHANNELS_PACKED) // 数据帧类型为RC通道数据
+        else if (elrs_data_temp[date_i+2] == CRSF_FRAMETYPE_RC_CHANNELS_PACKED)
         {
             elrs_data.channels[0] = ((uint16_t)elrs_data_temp[date_i+3] >> 0 | ((uint16_t)elrs_data_temp[date_i+4] << 8)) & 0x07FF;
             elrs_data.channels[1] = ((uint16_t)elrs_data_temp[date_i+4] >> 3 | ((uint16_t)elrs_data_temp[date_i+5] << 5)) & 0x07FF;
@@ -154,18 +155,18 @@ void ELRS_UARTE_RxCallback(uint16_t Size)
             elrs_data.channels[3] = ((uint16_t)elrs_data_temp[date_i+7] >> 1 | ((uint16_t)elrs_data_temp[date_i+8] << 7)) & 0x07FF;
             elrs_data.channels[4] = ((uint16_t)elrs_data_temp[date_i+8] >> 4 | ((uint16_t)elrs_data_temp[date_i+9] << 4)) & 0x07FF;
             elrs_data.channels[5] = ((uint16_t)elrs_data_temp[date_i+9] >> 7 | ((uint16_t)elrs_data_temp[date_i+10] << 1) | ((uint16_t)elrs_data_temp[date_i+11] << 9)) & 0x07FF;
-            // 通道映射：将遥控器原始通道值映射到控制参数
-            // channels[0]=Yaw(左右), channels[1]=Pitch(前后), channels[2]=Throttle(油门)
-            // channels[3]=Roll(翻滚), channels[4]=Switch(开关), channels[5]=Mode(模式)
-            
-            elrs_data.Roll      = int16_Map_with_median(elrs_data.channels[3], 174, 1808, 992, -400, 400);  // 翻滚控制
-            elrs_data.Throttle  = int16_Map_with_median(elrs_data.channels[2], 174, 1811, 992, 5, 15);        // 油门控制(5-15)
-            elrs_data.Yaw       = int16_Map_with_median(elrs_data.channels[0], 174, 1811, 992, -100, 100);    // 偏航控制(-100~+100)
-            // midpoint_1：根据Yaw绝对值计算额外偏置，用于转向时调整翅膀基准位置
-            elrs_data.midpoint_1= int16_Map_with_median(abs16_fast(elrs_data.Yaw), 0, 100, 50, 0, 30);        // Yaw越大，偏置越大(0-30)
-            elrs_data.midpoint  = apply_deadzone(int16_Map_with_median(elrs_data.channels[1], 174, 1808, 992, -80, 80), 5);  // 前后微调(带死区)
-            elrs_data.Switch    = (elrs_data.channels[4] > 1500) ? 1 : 0;  // 开关：0=关闭(<1500), 1=开启(>1500)
-            elrs_data.Mode      = (elrs_data.channels[5] > 1700) ? 2 : ((elrs_data.channels[5] > 900 && elrs_data.channels[5] < 1100) ? 1 : 0);  // 模式：0=并翅, 1=平翅, 2=扑动
+            /* ???channels[0]=Yaw?[1]=Pitch?[2]=Throttle?[3]=Roll?[4]=Switch?[5]=Mode */
+
+            elrs_data.Roll      = int16_Map_with_median(elrs_data.channels[3], 174, 1808, 992, -400, 400);
+            elrs_data.Throttle  = int16_Map_with_median(elrs_data.channels[2], 174, 1811, 992, 5, 15);
+            elrs_data.Yaw       = int16_Map_with_median(elrs_data.channels[0], 174, 1811, 992, -100, 100);
+            /* midpoint_1??? |Yaw| ???????????????? */
+            elrs_data.midpoint_1= int16_Map_with_median(abs16_fast(elrs_data.Yaw), 0, 100, 50, 0, 30);
+            elrs_data.midpoint  = apply_deadzone(int16_Map_with_median(elrs_data.channels[1], 174, 1808, 992, -80, 80), 5);
+            elrs_data.Switch    = (elrs_data.channels[4] > 1500) ? 1 : 0;
+            elrs_data.Mode      = (elrs_data.channels[5] > 1700) ? 2 : ((elrs_data.channels[5] > 900 && elrs_data.channels[5] < 1100) ? 1 : 0);
+
+            last_signal_time = HAL_GetTick();
         }
 
         else

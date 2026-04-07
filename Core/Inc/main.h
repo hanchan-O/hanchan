@@ -79,9 +79,10 @@ void Error_Handler(void);
 
 #define PWM_M3_2_GPIO_Port GPIOB
 
-#define PWM_M2_1_Pin GPIO_PIN_2
+/* M2 用 TIM2_CH3/CH4；原 PA2/PA3 与 USART2 冲突，故 CH3 改 PC6(AF2)，CH4 仍用 PA3 */
+#define PWM_M2_1_Pin GPIO_PIN_6
 
-#define PWM_M2_1_GPIO_Port GPIOA
+#define PWM_M2_1_GPIO_Port GPIOC
 
 #define PWM_M2_2_Pin GPIO_PIN_3
 
@@ -97,8 +98,8 @@ void Error_Handler(void);
 
 
 /* USER CODE BEGIN Private defines */
-extern int motor_L_set;          //?????????
-extern int motor_R_set;          //?????????
+extern int motor_L_set;          /* 左电机设定（预留） */
+extern int motor_R_set;          /* 右电机设定（预留） */
 #define PI		3.14
 float fastCos(float angle) ;
 float fastSin(float angle) ;

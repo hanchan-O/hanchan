@@ -8,7 +8,7 @@ fly\usart.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_def.h
 fly\usart.o: ../Drivers/CMSIS/Device/ST/STM32G0xx/Include/stm32g0xx.h
 fly\usart.o: ../Drivers/CMSIS/Device/ST/STM32G0xx/Include/stm32g031xx.h
 fly\usart.o: ../Drivers/CMSIS/Include/core_cm0plus.h
-fly\usart.o: D:\Program Files\Keil_v5-arm\ARM\ARM_Compiler_5.06u7\Bin\..\include\stdint.h
+fly\usart.o: D:\Program Files\Keil_arm\ARM\ARMCC\Bin\..\include\stdint.h
 fly\usart.o: ../Drivers/CMSIS/Include/cmsis_version.h
 fly\usart.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 fly\usart.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -16,7 +16,7 @@ fly\usart.o: ../Drivers/CMSIS/Include/mpu_armv7.h
 fly\usart.o: ../Drivers/CMSIS/Device/ST/STM32G0xx/Include/system_stm32g0xx.h
 fly\usart.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal.h
 fly\usart.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-fly\usart.o: D:\Program Files\Keil_v5-arm\ARM\ARM_Compiler_5.06u7\Bin\..\include\stddef.h
+fly\usart.o: D:\Program Files\Keil_arm\ARM\ARMCC\Bin\..\include\stddef.h
 fly\usart.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_ll_rcc.h
 fly\usart.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_rcc_ex.h
 fly\usart.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_gpio.h
@@ -42,7 +42,7 @@ fly\usart.o: ../user/module/AS5600/as5600.h
 fly\usart.o: ../Core/Inc/main.h
 fly\usart.o: ../user/struct_typedef.h
 fly\usart.o: ../user/module/pid/pid.h
-fly\usart.o: D:\Program Files\Keil_v5-arm\ARM\ARM_Compiler_5.06u7\Bin\..\include\math.h
+fly\usart.o: D:\Program Files\Keil_arm\ARM\ARMCC\Bin\..\include\math.h
 fly\usart.o: ../user/module/motor/motor.h
+fly\usart.o: ../Core/Inc/motor_hw_config.h
 fly\usart.o: ../user/module/AS5600/AS5600_PWM.h
-fly\usart.o: ../Core/Inc/adc.h

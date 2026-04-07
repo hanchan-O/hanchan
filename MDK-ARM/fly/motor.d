@@ -1,5 +1,6 @@
 fly\motor.o: ..\user\module\motor\motor.c
 fly\motor.o: ..\user\module\motor\motor.h
+fly\motor.o: ../Core/Inc/motor_hw_config.h
 fly\motor.o: ../user/module/pid/pid.h
 fly\motor.o: ../user/struct_typedef.h
 fly\motor.o: ../Core/Inc/main.h
@@ -10,7 +11,7 @@ fly\motor.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_def.h
 fly\motor.o: ../Drivers/CMSIS/Device/ST/STM32G0xx/Include/stm32g0xx.h
 fly\motor.o: ../Drivers/CMSIS/Device/ST/STM32G0xx/Include/stm32g031xx.h
 fly\motor.o: ../Drivers/CMSIS/Include/core_cm0plus.h
-fly\motor.o: D:\Program Files\Keil_v5-arm\ARM\ARM_Compiler_5.06u7\Bin\..\include\stdint.h
+fly\motor.o: D:\Program Files\Keil_arm\ARM\ARMCC\Bin\..\include\stdint.h
 fly\motor.o: ../Drivers/CMSIS/Include/cmsis_version.h
 fly\motor.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 fly\motor.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -18,7 +19,7 @@ fly\motor.o: ../Drivers/CMSIS/Include/mpu_armv7.h
 fly\motor.o: ../Drivers/CMSIS/Device/ST/STM32G0xx/Include/system_stm32g0xx.h
 fly\motor.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal.h
 fly\motor.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-fly\motor.o: D:\Program Files\Keil_v5-arm\ARM\ARM_Compiler_5.06u7\Bin\..\include\stddef.h
+fly\motor.o: D:\Program Files\Keil_arm\ARM\ARMCC\Bin\..\include\stddef.h
 fly\motor.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_ll_rcc.h
 fly\motor.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_rcc_ex.h
 fly\motor.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_gpio.h
@@ -42,7 +43,6 @@ fly\motor.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_uart.h
 fly\motor.o: ../Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_hal_uart_ex.h
 fly\motor.o: ../user/module/AS5600/as5600.h
 fly\motor.o: ../Core/Inc/main.h
-fly\motor.o: D:\Program Files\Keil_v5-arm\ARM\ARM_Compiler_5.06u7\Bin\..\include\math.h
+fly\motor.o: D:\Program Files\Keil_arm\ARM\ARMCC\Bin\..\include\math.h
 fly\motor.o: ../user/module/motor/motor.h
 fly\motor.o: ../user/module/AS5600/AS5600_PWM.h
-fly\motor.o: ../Core/Inc/adc.h
