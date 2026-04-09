@@ -318,25 +318,24 @@ void StarAndGetResult(void){
 	filtered_ad[2] = limit_and_lowpass_filter(AD_Value[2], 2);  // 左前
 	filtered_ad[3] = limit_and_lowpass_filter(AD_Value[3], 3);  // 右后
 	
-	// 步骤3：角度转换与方向处理
-	// PROCESS_VALUE宏定义在AS5600_PWM.h中，执行：
-	// relative_angle = (raw_value + 4096 - (midpoint + 3072)) & 0x0FFF
-	
-	// 电机0（右前）：正常方向
+	// 步骤3：角度转换（统一处理，无方向反转）
+	//
+	// ⚠️ 【V6.2重要】前提条件：所有4个磁编码器的磁铁安装方向必须一致！
+	//   统一标准：顺时针转 → 编码器值增大 → 翅膀向下运动
+	//   验证方法：手动把每个翅膀往下压，观察编码器读数应该变大
+	//   如果某个编码器变小了 → 把那个编码器的磁铁旋转180°重新安装
+	//
+	// PROCESS_VALUE宏执行：relative_angle = (raw_value + 4096 - (midpoint + 3072)) & 0x0FFF
+
+	// 电机0（右前）：PA0(ADC_CH0)
 	Wings_Data.Wings_motor[0].Corrective_Angle = PROCESS_VALUE(filtered_ad[0], MOTOR1_MIDPOINT);
-	
-	// 电机1（左后）：正常方向
+
+	// 电机1（左后）：PA1(ADC_CH1)
 	Wings_Data.Wings_motor[1].Corrective_Angle = PROCESS_VALUE(filtered_ad[1], MOTOR2_MIDPOINT);
-	
-	// 电机2（左前）：⚠️ 反转方向
-	// 原因：这个电机的编码器安装方向与其他相反
-	// 处理：原始值和中点值都取反（4096-x）
-	Wings_Data.Wings_motor[2].Corrective_Angle = PROCESS_VALUE(
-		(4096u - filtered_ad[2]),   // 反转原始值
-		(4096u - MOTOR3_MIDPOINT)); // 反转中点值
-	
-	// 电机3（右后）：⚠️ 反转方向（同电机2）
-	Wings_Data.Wings_motor[3].Corrective_Angle = PROCESS_VALUE(
-		(4096u - filtered_ad[3]), 
-		(4096u - MOTOR4_MIDPOINT));
+
+	// 电机2（左前）：PA6(ADC_CH6)
+	Wings_Data.Wings_motor[2].Corrective_Angle = PROCESS_VALUE(filtered_ad[2], MOTOR3_MIDPOINT);
+
+	// 电机3（右后）：PA7(ADC_CH7)
+	Wings_Data.Wings_motor[3].Corrective_Angle = PROCESS_VALUE(filtered_ad[3], MOTOR4_MIDPOINT);
 }

@@ -35,13 +35,23 @@ WINGS_DATA Wings_Data;
 
 /**
  * @brief 各电机的PWM设定值（调试用）
- * 
- * 存储PID计算结果，可在调试时观察各电机的输出情况
+ *
+ * 【V6.2清晰命名规则】变量名 = 物理位置
+ *
+ * | 变量名           | 物理位置 | Wings_motor索引 | 最终到哪个硬件 |
+ * |-----------------|---------|----------------|--------------|
+ * | motor_1_set_pwm | 右前(0)  | [0]            | M1 (TIM2)    |
+ * | motor_2_set_pwm | 左后(1)  | [1]            | M4 (TIM3)    |
+ * | motor_3_set_pwm | 左前(2)  | [2]            | M3 (TIM3)    |
+ * | motor_4_set_pwm | 右后(3)  | [3]            | M2 (TIM2)    |
+ *
+ * ⚠️ 注意：变量名数字 ≠ 硬件M编号！这是历史原因造成的。
+ * 具体对应关系见下方Set_Pwm()调用处的注释。
  */
-int motor_1_set_pwm;   // 右前电机PWM值
-int motor_2_set_pwm;   // 左后电机PWM值（注意：变量名与索引不对应！）
-int motor_3_set_pwm;   // 左前电机PWM值
-int motor_4_set_pwm;   // 右后电机PWM值
+int motor_1_set_pwm;   // 右前电机PWM值 → M1硬件(PA15/PB3)
+int motor_2_set_pwm;   // 左后电机PWM值 → M4硬件(PB0/PB1)
+int motor_3_set_pwm;   // 左前电机PWM值 → M3硬件(PB4/PB5)
+int motor_4_set_pwm;   // 右后电机PWM值 → M2硬件(PA2/PA3)
 
 /**
  * @brief 4个电机的PID结构体实例
@@ -269,18 +279,24 @@ void Motor_PID_Control(void)
 	// ====== 第二步：PID计算 + 前馈叠加 ======
 	// 公式: Total_Output = PID_Output + Feedforward
 	//
-	// 【V6.1修复】左右对称控制策略
-	// 物理布局：  左前(2)     右前(0)
-	//            左后(1)     右后(3)
+	// 【V6.2】左右对称控制策略（必须保留！）
+	//
+	// 物理布局（从后方看蝴蝶）：
+	//              左前(2)     右前(0)
+	//              左后(1)     右后(3)
 	//
 	// 对称原则：
-	//   ✅ 左侧电机（左前+左后）：不取反，使用 +PID
-	//   ✅ 右侧电机（右前+右后）：取反，使用 -PID
+	//   ✅ 左侧电机（左前+左后）：不取反，使用 +(PID+FF)
+	//   ✅ 右侧电机（右前+右后）：取反，使用 -(PID+FF)
 	//   原因：左右电机镜像对称安装，相同PWM导致相反物理运动
+	//   要让4翅同时向下拍 → 右侧必须取反
+	//
+	// ⚠️ 如果你想通过改接线来消除这个取反：
+	//   把右侧2个电机的H桥IN1和IN2对调即可，然后删除下面的负号
 
-	// ====== 左侧电机（不取反）======
+	// ====== 左侧电机（正输出）======
 
-	// 电机2（左前）→ M3通道
+	// 电机2（左前）→ motor_3_set_pwm → M3硬件(PB4/PB5)
 	Wings_Data.Wings_motor[2].Target_Speed =
 	    motor_3_set_pwm =
 	        PID_calc(&motor_3_pid,
@@ -288,7 +304,7 @@ void Motor_PID_Control(void)
 	                 Wings_Data.Wings_motor[2].Target_Angle)
 	        + ff_motor_2;
 
-	// 电机1（左后）→ M4通道
+	// 电机1（左后）→ motor_2_set_pwm → M4硬件(PB0/PB1)
 	Wings_Data.Wings_motor[1].Target_Speed =
 	    motor_2_set_pwm =
 	        PID_calc(&motor_2_pid,
@@ -296,9 +312,9 @@ void Motor_PID_Control(void)
 	                 Wings_Data.Wings_motor[1].Target_Angle)
 	        + ff_motor_1;
 
-	// ====== 右侧电机（取反）======
+	// ====== 右侧电机（负输出 - 对称取反）======
 
-	// 电机0（右前）→ M1通道
+	// 电机0（右前）→ motor_1_set_pwm → M1硬件(PA15/PB3)
 	Wings_Data.Wings_motor[0].Target_Speed =
 	    motor_1_set_pwm =
 	        -(PID_calc(&motor_1_pid,
@@ -306,7 +322,7 @@ void Motor_PID_Control(void)
 	                  Wings_Data.Wings_motor[0].Target_Angle)
 	          + ff_motor_0);
 
-	// 电机3（右后）→ M2通道
+	// 电机3（右后）→ motor_4_set_pwm → M2硬件(PA2/PA3)
 	Wings_Data.Wings_motor[3].Target_Speed =
 	    motor_4_set_pwm =
 	        -(PID_calc(&motor_4_pid,
@@ -321,7 +337,17 @@ void Motor_PID_Control(void)
 	LimitMax(motor_3_set_pwm, motore_max_out);
 	LimitMax(motor_4_set_pwm, motore_max_out);
 
-	// ====== 第四步：输出PWM到4个通道 ======
+	// ====== 第四步：输出PWM到4个硬件通道 ======
+	//
+	// 【V6.2完整映射表 - 按此表接线！】
+	//
+	//  Set_Pwm参数 → 硬件驱动器 → STM32引脚     → 驱动的物理电机
+	//  ─────────────────────────────────────────────────────────────
+	//  第1个(m1)  →  M1驱动器   → PA15 + PB3    →  右前电机 ✅
+	//  第2个(m2)  →  M2驱动器   → PA2  + PA3    →  右后电机 ✅
+	//  第3个(m3)  →  M3驱动器   → PB4  + PB5    →  左前电机 ✅
+	//  第4个(m4)  →  M4驱动器   → PB0  + PB1    →  左后电机 ✅
+	//
 	Set_Pwm(motor_1_set_pwm, motor_4_set_pwm, motor_3_set_pwm, motor_2_set_pwm);
 }
 
@@ -362,11 +388,11 @@ void Motor_PID_Control(void)
 * 这样当input>0时，CH2=pwm, CH1=0（反转）
 *     当input≤0时，CH1=pwm, CH2=0（正转或停止）
 *
-* ## 参数说明
-* @param m1: 电机1（右前）的PWM值（来自motor_1_set_pwm）
-* @param m2: 电机2（右后）的PWM值（来自motor_4_set_pwm）
-* @param m3: 电机3（左前）的PWM值（来自motor_3_set_pwm）
-* @param m4: 电机4（左后）的PWM值（来自motor_2_set_pwm）
+* ## 参数说明（V6.2清晰映射）
+* @param m1: → M1驱动器(PA15/PB3) → 右前电机 ← 来自motor_1_set_pwm
+* @param m2: → M2驱动器(PA2/PA3)  → 右后电机 ← 来自motor_4_set_pwm
+* @param m3: → M3驱动器(PB4/PB5)  → 左前电机 ← 来自motor_3_set_pwm
+* @param m4: → M4驱动器(PB0/PB1)  → 左后电机 ← 来自motor_2_set_pwm
 *
 * 数值含义：
 * - 正数：一个方向旋转（具体方向取决于接线）
