@@ -207,13 +207,19 @@ int main(void)
             if (last_mode != 2) {
                 last_mode = 2;
                 reset_flap_state();  // 重置扑动状态
+                // 【V6.1差异化】切换到Mode 2时，恢复扑动最优参数
+                // 从motor.h读取：Kp=18, Ki=0.08, Kd=3.0
+                for (int i = 0; i < 4; i++) {
+                    pid_type_def* pid_list[4] = {&motor_1_pid, &motor_2_pid, &motor_3_pid, &motor_4_pid};
+                    pid_list[i]->Kp = motor_pid_params[i][0];  // Kp=18
+                    pid_list[i]->Ki = motor_pid_params[i][1];  // Ki=0.08
+                    pid_list[i]->Kd = motor_pid_params[i][2];  // Kd=3.0
+                }
             }
 
-            // 设置 PID 参数（7.56V 高电压下降低 Kp，防止过冲震荡）
-            motor_1_pid.Kp = 15;  // 右前（原 15）
-            motor_2_pid.Kp = 15;  // 左后（原 15）
-            motor_3_pid.Kp = 12;   // 左前（原 12）
-            motor_4_pid.Kp = 12;   // 右后（原 12）
+            // 【V6.1差异化PID策略】
+            // Mode 2是高速扑动模式，使用motor.h中的最优参数(Kp=18,Ki=0.08,Kd=3.0)
+            // 无需在此处覆盖，PD+前馈控制已针对7.4V锂电池和扑动优化
 
             // 计算基准位置
             const int16_t motor_front_L_ready = motor_front_L_midpoint + elrs_data.midpoint;
@@ -270,13 +276,20 @@ int main(void)
         else if (elrs_data.Mode == 1)
 		{
 			static uint8_t last_mode = 255;
-			if (last_mode != 1) last_mode = 1;
-			
-			// 7.56V 高电压下降低 Kp，防止抖动
-			motor_1_pid.Kp = 10;   // 电机 0(右前)（原 12）
-			motor_2_pid.Kp = 10;   // 电机 1(左后)（原 12）
-			motor_3_pid.Kp = 10;   // 电机 2(左前)（原 12）
-			motor_4_pid.Kp = 10;   // 电机 3(右后)（原 12）
+			if (last_mode != 1) {
+				last_mode = 1;
+				// 【V6.1差异化】Mode 1切换时，应用保守PID参数（防止静态定位抖动）
+				// Kp=10: 降低响应速度，提高稳定性
+				// Ki=0.05: 很小的积分项，消除稳态误差但不会积分饱和
+				// Kd=2.0: 适度微分，抑制超调
+				for (int i = 0; i < 4; i++) {
+					pid_type_def* pid_list[4] = {&motor_1_pid, &motor_2_pid, &motor_3_pid, &motor_4_pid};
+					pid_list[i]->Kp = 10.0f;
+					pid_list[i]->Ki = 0.05f;
+					pid_list[i]->Kd = 2.0f;
+				}
+			}
+
 			// 基准角计算（带转向差动）
 			// 注意：编码器值减小=翅膀上移（升力减小），编码器值增大=翅膀下移（升力增大）
 			// 左转（Yaw<0）：右翼下移（升力增大），左翼上移（升力减小）
@@ -346,12 +359,20 @@ int main(void)
 		}
         else
 		{
+			static uint8_t last_mode_0 = 255;
 			// Mode0并翅模式 - 梯形速度规划改进版
-			motor_1_pid.Kp = 8;   // 电机0(右前) - 增加Kp以加快响应
-			motor_2_pid.Kp = 8;   // 电机1(左后)
-			motor_3_pid.Kp = 8;   // 电机2(左前)
-			motor_4_pid.Kp = 8;   // 电机3(右后) - 增加Kp以加快响应
-			
+			if (last_mode_0 != 0) {
+				last_mode_0 = 0;
+				// 【V6.1差异化】Mode 0切换时，应用保守PID参数（防止静态定位抖动）
+				// 并翅模式是静态定位，不需要快速响应，稳定性优先
+				for (int i = 0; i < 4; i++) {
+					pid_type_def* pid_list[4] = {&motor_1_pid, &motor_2_pid, &motor_3_pid, &motor_4_pid};
+					pid_list[i]->Kp = 10.0f;
+					pid_list[i]->Ki = 0.05f;
+					pid_list[i]->Kd = 2.0f;
+				}
+			}
+
 			// 目标角度 - 统一为1024（竖直并翅）
 			// 注意：数组索引与电机位置的对应关系
 			// Wings_motor[0] = 右前, Wings_motor[1] = 左后
