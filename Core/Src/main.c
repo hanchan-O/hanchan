@@ -196,6 +196,14 @@ int main(void)
     // 步骤1：ADC采集滤波（每次循环都执行，确保数据最新）
     StarAndGetResult();
 
+    // 步骤1.5：更新调试变量（每周期刷新）
+    #ifdef DEBUG_MODE
+    debug_current[0] = Wings_Data.Wings_motor[0].Corrective_Angle;  // 右前
+    debug_current[1] = Wings_Data.Wings_motor[1].Corrective_Angle;  // 左后
+    debug_current[2] = Wings_Data.Wings_motor[2].Corrective_Angle;  // 左前
+    debug_current[3] = Wings_Data.Wings_motor[3].Corrective_Angle;  // 右后
+    #endif
+
     if (elrs_data.Switch == 1)
     {
 

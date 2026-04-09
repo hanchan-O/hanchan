@@ -21,6 +21,18 @@
 
 #include "motor.h"
 
+#define LimitMax(input, max)   \
+    {                          \
+        if (input > max)       \
+        {                      \
+            input = max;       \
+        }                      \
+        else if (input < -max) \
+        {                      \
+            input = -max;      \
+        }                      \
+    }
+
 // ==================== 全局变量定义 ====================
 
 /**
@@ -349,6 +361,14 @@ void Motor_PID_Control(void)
 	//  第4个(m4)  →  M4驱动器   → PB0  + PB1    →  左后电机 ✅
 	//
 	Set_Pwm(motor_1_set_pwm, motor_4_set_pwm, motor_3_set_pwm, motor_2_set_pwm);
+
+	#ifdef DEBUG_MODE
+	extern volatile int16_t debug_pwm[4];
+	debug_pwm[0] = motor_1_set_pwm;  // 右前PWM输出
+	debug_pwm[1] = motor_2_set_pwm;  // 右后PWM输出(内部变量)
+	debug_pwm[2] = motor_3_set_pwm;  // 左前PWM输出
+	debug_pwm[3] = motor_4_set_pwm;  // 左后PWM输出(内部变量)
+	#endif
 }
 
 /**
