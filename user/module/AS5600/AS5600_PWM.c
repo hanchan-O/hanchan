@@ -326,16 +326,20 @@ void StarAndGetResult(void){
 	//   如果某个编码器变小了 → 把那个编码器的磁铁旋转180°重新安装
 	//
 	// PROCESS_VALUE宏执行：relative_angle = (raw_value + 4096 - (midpoint + 3072)) & 0x0FFF
+	//
+	// ⚠️ V6.2.1 自定义引脚映射（非标准PCB布线）
+	//    原标准: PA0→M1, PA1→M4, PA6→M3, PA7→M2
+	//    新映射: PA0→M3, PA1→M1, PA6→M4, PA7→M2
 
-	// 电机0（右前）：PA0(ADC_CH0)
-	Wings_Data.Wings_motor[0].Corrective_Angle = PROCESS_VALUE(filtered_ad[0], MOTOR1_MIDPOINT);
+	// 电机0（右前 M1）：PA1(ADC_CH1) ← 原PA0
+	Wings_Data.Wings_motor[0].Corrective_Angle = PROCESS_VALUE(filtered_ad[1], MOTOR1_MIDPOINT);
 
-	// 电机1（左后）：PA1(ADC_CH1)
-	Wings_Data.Wings_motor[1].Corrective_Angle = PROCESS_VALUE(filtered_ad[1], MOTOR2_MIDPOINT);
+	// 电机1（左后 M4）：PA6(ADC_CH6) ← 原PA1
+	Wings_Data.Wings_motor[1].Corrective_Angle = PROCESS_VALUE(filtered_ad[2], MOTOR2_MIDPOINT);
 
-	// 电机2（左前）：PA6(ADC_CH6)
-	Wings_Data.Wings_motor[2].Corrective_Angle = PROCESS_VALUE(filtered_ad[2], MOTOR3_MIDPOINT);
+	// 电机2（左前 M3）：PA0(ADC_CH0) ← 原PA6
+	Wings_Data.Wings_motor[2].Corrective_Angle = PROCESS_VALUE(filtered_ad[0], MOTOR3_MIDPOINT);
 
-	// 电机3（右后）：PA7(ADC_CH7)
+	// 电机3（右后 M2）：PA7(ADC_CH7) ← 不变
 	Wings_Data.Wings_motor[3].Corrective_Angle = PROCESS_VALUE(filtered_ad[3], MOTOR4_MIDPOINT);
 }

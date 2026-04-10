@@ -154,6 +154,33 @@
         </SetRegEntry>
       </TargetDriverDllRegistry>
       <Breakpoint/>
+      <WatchWindow1>
+        <Ww>
+          <count>0</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>AD_Value,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>1</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>debug_current,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>2</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>debug_err,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>3</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>debug_pwm,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>4</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>elrs_data ,0x0A</ItemText>
+        </Ww>
+      </WatchWindow1>
       <WatchWindow2>
         <Ww>
           <count>0</count>

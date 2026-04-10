@@ -351,23 +351,23 @@ void Motor_PID_Control(void)
 
 	// ====== 第四步：输出PWM到4个硬件通道 ======
 	//
-	// 【V6.2完整映射表 - 按此表接线！】
+	// 【V6.2.1 自定义引脚映射表 - 按此表接线！】
 	//
-	//  Set_Pwm参数 → 硬件驱动器 → STM32引脚     → 驱动的物理电机
-	//  ─────────────────────────────────────────────────────────────
-	//  第1个(m1)  →  M1驱动器   → PA15 + PB3    →  右前电机 ✅
-	//  第2个(m2)  →  M2驱动器   → PA2  + PA3    →  右后电机 ✅
-	//  第3个(m3)  →  M3驱动器   → PB4  + PB5    →  左前电机 ✅
-	//  第4个(m4)  →  M4驱动器   → PB0  + PB1    →  左后电机 ✅
+	//  Set_Pwm参数 → 硬件驱动器 → PWM引脚       → 物理电机 → 编码器引脚(ADC)
+	//  ────────────────────────────────────────────────────────────────────────
+	//  第1个(m1)  →  M1驱动器   → PA15 + PB3    →  右前M1  →  PA1 (AD_CH1)
+	//  第2个(m2)  →  M2驱动器   → PA2  + PA3    →  右后M2  →  PA7 (AD_CH7)
+	//  第3个(m3)  →  M3驱动器   → PB4  + PB5    →  左前M3  →  PA0 (AD_CH0)
+	//  第4个(m4)  →  M4驱动器   → PB0  + PB1    →  左后M4  →  PA6 (AD_CH6)
 	//
 	Set_Pwm(motor_1_set_pwm, motor_4_set_pwm, motor_3_set_pwm, motor_2_set_pwm);
 
 	#ifdef DEBUG_MODE
 	extern volatile int16_t debug_pwm[4];
-	debug_pwm[0] = motor_1_set_pwm;  // 右前PWM输出
-	debug_pwm[1] = motor_2_set_pwm;  // 右后PWM输出(内部变量)
-	debug_pwm[2] = motor_3_set_pwm;  // 左前PWM输出
-	debug_pwm[3] = motor_4_set_pwm;  // 左后PWM输出(内部变量)
+	debug_pwm[0] = motor_1_set_pwm;  // 右前M1(PA15+PB3)PWM输出, 编码器=PA1
+	debug_pwm[1] = motor_2_set_pwm;  // 右后M2(PA2+PA3)PWM输出, 编码器=PA7
+	debug_pwm[2] = motor_3_set_pwm;  // 左前M3(PB4+PB5)PWM输出, 编码器=PA0
+	debug_pwm[3] = motor_4_set_pwm;  // 左后M4(PB0+PB1)PWM输出, 编码器=PA6
 	#endif
 }
 

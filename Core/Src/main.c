@@ -95,11 +95,14 @@ void motor_stop(void)  // 翅膀暂停
     TIM3->CCR4 = 19999;
 }
 
-void motor_test(void)  // 调试前翅膀水平打开，运行后翅膀向下摆动，即为电机方向正确
+void motor_test(void)  // V6.2.1 单电机测试 - 只驱动M3(PB4+PB5)
 {
-    Set_Pwm(3000, 3000, 3000, 3000);
-    HAL_Delay(100);
-    Set_Pwm(0, 0, 0, 0);
+    // Set_Pwm(m1, m2, m3, m4)
+    //          ↑   ↑   ↑   ↑
+    //        M1  M2  M3  M4 (Set_Pwm参数顺序)
+    Set_Pwm(0, 0, 3000, 0);     // 只给M3通电
+    HAL_Delay(200);             // 转200ms
+    Set_Pwm(0, 0, 0, 0);       // 停止
     while (1);
 }
 /* USER CODE END PD */
@@ -185,6 +188,10 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+    // ⚠️ V6.2.1 单电机测试 - 已测完 ✅
+    // motor_test();
+
   while (1)
   {
 	
@@ -197,11 +204,12 @@ int main(void)
     StarAndGetResult();
 
     // 步骤1.5：更新调试变量（每周期刷新）
+    // V6.2.1 自定义引脚映射: PA0→M3, PA1→M1, PA6→M4, PA7→M2
     #ifdef DEBUG_MODE
-    debug_current[0] = Wings_Data.Wings_motor[0].Corrective_Angle;  // 右前
-    debug_current[1] = Wings_Data.Wings_motor[1].Corrective_Angle;  // 左后
-    debug_current[2] = Wings_Data.Wings_motor[2].Corrective_Angle;  // 左前
-    debug_current[3] = Wings_Data.Wings_motor[3].Corrective_Angle;  // 右后
+    debug_current[0] = Wings_Data.Wings_motor[0].Corrective_Angle;  // 右前M1, 编码器=PA1
+    debug_current[1] = Wings_Data.Wings_motor[1].Corrective_Angle;  // 左后M4, 编码器=PA6
+    debug_current[2] = Wings_Data.Wings_motor[2].Corrective_Angle;  // 左前M3, 编码器=PA0
+    debug_current[3] = Wings_Data.Wings_motor[3].Corrective_Angle;  // 右后M2, 编码器=PA7
     #endif
 
     if (elrs_data.Switch == 1)

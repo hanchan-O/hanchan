@@ -15,7 +15,7 @@
 // 各电机1024点位定义（新编码器的原始中点值）
 #define MOTOR1_MIDPOINT 1508 // 电机0（右前）→ M1通道
 #define MOTOR2_MIDPOINT 577	// 电机1（左后）→ M4通道
-#define MOTOR3_MIDPOINT 3172   // 电机2（左前）→ M3通道
+#define MOTOR3_MIDPOINT 838    // 电机2（左前M3）→ PA0通道 ⚠️V6.2.1已重新校准
 #define MOTOR4_MIDPOINT 3580 // 电机3（右后）→ M2通道
 
 // 编码器方向反转标志（1=反转，0=正常）
