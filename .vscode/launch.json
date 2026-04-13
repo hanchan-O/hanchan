@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/Users/HP/Desktop/1/hanchan/user/module/flight_control",
-      "program": "c:/Users/HP/Desktop/1/hanchan/user/module/flight_control/build/Debug/outDebug",
+      "cwd": "c:/Users/HP/Desktop/1/hanchan/Core/Src",
+      "program": "c:/Users/HP/Desktop/1/hanchan/Core/Src/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

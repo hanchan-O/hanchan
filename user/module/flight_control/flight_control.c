@@ -17,6 +17,9 @@
  * 修改后重新编译即可生效
  */
 
+// 【关键】必须与main.c保持一致，否则调试代码不会被编译！
+#define DEBUG_MODE
+
 #include "flight_control.h"
 #include "motor.h"  
 #include <math.h>
@@ -25,7 +28,7 @@
 
 /**
  * @brief 姿态数据实例
- * 存储基于4电机位置推算的飞行姿态信息
+ * 存储基于2电机位置推算的飞行姿态信息（双电机版本）
  */
 Attitude_Est_t attitude = {0};
 
@@ -43,7 +46,8 @@ Attitude_Est_t attitude = {0};
 // 索引 0-12 (13点)：下拍阶段，占40%时间 → 快速下降产生升力
 // 索引 13    (1点) ：极限缓冲，短暂停顿 → 避免机械冲击
 // 索引 14-24 (11点)：上挥阶段，占60%时间 → 缓慢恢复节省能量
-static const int16_t BIOMIMETIC_WAVE[25] = {
+// 【修复】保持与头文件一致，去掉static，保持const
+const int16_t BIOMIMETIC_WAVE[25] = {
     // 下拍阶段（索引0-12，占40%时间）⬇️ 快速
     32767,   // [0]  上极限起点（cos=1.0）← 从这里开始
     32000,   // [1]  开始加速下拍
@@ -92,12 +96,12 @@ uint8_t  thr = 0;             // 当前油门值（5-15），控制扑动频率
  * 效果：增大升力（类似鸟类调整迎角）
  * 
  * 可调范围：100 ~ 300
- * 当前值：200（中等偏移）
+ * 当前值：250（中等偏移，V6.4优化：增大升力）
  * 建议：
- *   - 升力不足 → 增大到250-300
- *   - 冲击太大 → 减小到150
+ *   - 升力不足 → 增大到280-300
+ *   - 冲击太大 → 减小到200
  */
-#define FLAP_CENTER_OFFSET 200
+#define FLAP_CENTER_OFFSET 250
 
 /**
  * @brief 下拍时间占比（百分比）
@@ -106,12 +110,12 @@ uint8_t  thr = 0;             // 当前油门值（5-15），控制扑动频率
  * 效果：较小的值 = 更快的下拍 = 更大的瞬时升力
  * 
  * 可调范围：30 ~ 50
- * 当前值：40（推荐值，接近真实蝴蝶35-45%）
+ * 当前值：35（V6.4优化：更快下拍，增大升力）
  * 建议：
- *   - 想要更大升力 → 改为35（更快下拍）
- *   - 想要更平滑 → 改为45（稍慢）
+ *   - 想要更大升力 → 改为30（最快下拍）
+ *   - 想要更平滑 → 改为40（稍慢）
  */
-#define DOWNSTROKE_RATIO 40
+#define DOWNSTROKE_RATIO 35
 
 /**
  * @brief 上挥时间占比（百分比）
@@ -120,12 +124,12 @@ uint8_t  thr = 0;             // 当前油门值（5-15），控制扑动频率
  * 上挥慢可以减少空气阻力，节省能量
  * 
  * 可调范围：50 ~ 70
- * 当前值：60（推荐值）
+ * 当前值：65（V6.4优化：更慢上挥，节省能量）
  * 建议：
- *   - 想要更省电 → 改为65（更慢上挥）
- *   - 想要更高频 → 改为55（稍快）
+ *   - 想要更省电 → 改为70（最慢上挥）
+ *   - 想要更高频 → 改为60（稍快）
  */
-#define UPSTROKE_RATIO   60
+#define UPSTROKE_RATIO   65
 
 /**
  * @brief 极限位置缓冲区大小（编码器单位）
@@ -136,12 +140,12 @@ uint8_t  thr = 0;             // 当前油门值（5-15），控制扑动频率
  * ⚠️ 安全警告：太小会导致"咔咔"冲击声，甚至损坏塑料齿轮箱！
  * 
  * 可调范围：80 ~ 200
- * 当前值：100（保守值）
+ * 当前值：120（V6.4优化：增大保护，适应高频扑动）
  * 建议：
  *   - 有冲击声 → 增大到150
- *   - 幅度不够大 → 可以尝试减小到80（但有风险！）
+ *   - 幅度不够大 → 可以尝试减小到100（但有风险！）
  */
-#define BUFFER_ZONE_SIZE 100
+#define BUFFER_ZONE_SIZE 120
 
 /**
  * @brief 最大允许扑动频率（Hz）
@@ -149,20 +153,20 @@ uint8_t  thr = 0;             // 当前油门值（5-15），控制扑动频率
  * 限制原因：基于电机物理特性计算的安全上限
  * 电机规格：360 RPM空载转速 @ 7.4V
  * 理论最大频率：360/60 = 6 Hz（无负载时）
- * 实际工作频率应 ≤ 6 Hz（考虑负载和齿轮箱寿命）
+ * 实际工作频率应 ≤ 7 Hz（考虑负载和齿轮箱寿命）
  * 
- * ⚠️ 超过6Hz可能导致：
+ * ⚠️ 超过7Hz可能导致：
  *   - 电机过热
  *   - PID跟踪不上（幅度衰减严重）
  *   - 齿轮箱快速磨损
  * 
- * 可调范围：4 ~ 6
- * 当前值：6（最大安全值）
+ * 可调范围：4 ~ 7
+ * 当前值：7（V6.4优化：支持更高频扑动）
  * 建议：
- *   - 保护优先 → 改为5或4
- *   - 需要高性能 → 保持6（但密切监测温度）
+ *   - 保护优先 → 改为5或6
+ *   - 需要高性能 → 保持7（但密切监测温度）
  */
-#define MAX_BIOMIMETIC_FREQ 6
+#define MAX_BIOMIMETIC_FREQ 7
 
 /**
  * @brief 最小步进时间间隔（毫秒）
@@ -171,19 +175,19 @@ uint8_t  thr = 0;             // 当前油门值（5-15），控制扑动频率
  * 影响：与MAX_BIOMIMETIC_FREQ配合使用
  * 
  * 计算公式：MIN_STEP_MS ≈ 1000 / (MAX_FREQ × 总步数)
- * 当前设置：16ms（对应约6Hz / 25步 ≈ 6.7ms，取整到16ms安全值）
+ * 当前设置：12ms（V6.4优化：支持7Hz高频扑动）
  * 
- * 可调范围：12 ~ 20
- * 当前值：16
+ * 可调范围：10 ~ 20
+ * 当前值：12
  * 建议：
- *   - 需要更高频 → 减小到12（但不要低于12）
- *   - 需要更稳定 → 增大到20
+ *   - 需要更高频 → 减小到10（但不要低于10）
+ *   - 需要更稳定 → 增大到16
  */
-#define MIN_STEP_MS 16
+#define MIN_STEP_MS 12
 
 // ==================== 动态补偿系统内部变量 ====================
-static uint16_t actual_flap_count = 0;       // 实际扑动次数统计（用于调试）
-static float amplitude_compensation = 1.0f;  // 幅度补偿系数（自动计算）
+static volatile uint16_t actual_flap_count = 0;       // 实际扑动次数统计（用于调试）
+static volatile float amplitude_compensation = 1.0f;  // 幅度补偿系数（自动计算）
 static uint32_t last_period_time = 0;        // 上次周期完成时间（用于测频）
 
 // ==================== 函数实现 ====================
@@ -267,21 +271,25 @@ uint32_t Calculate_Biomimetic_Step_Time(uint8_t throttle, uint8_t is_downstroke)
 {
     if (throttle == 0) throttle = 5;
     
-    const uint32_t BASE_PERIOD_MS = 5000U;  // 基准周期5秒（throttle=1时）
-    const uint8_t TOTAL_STEPS = 25U;         // 波形表总点数
+    const uint32_t BASE_PERIOD_MS = 3000U;  // 基准周期3秒（V6.4优化：支持4-5Hz）
     
     uint32_t target_period_ms = BASE_PERIOD_MS / throttle;
     
-    const uint32_t MIN_PERIOD_MS = 166U;  // 6Hz对应的最小周期（167ms≈1000/6）
+    const uint32_t MIN_PERIOD_MS = 143U;  // 7Hz对应的最小周期（143ms≈1000/7）
     if (target_period_ms < MIN_PERIOD_MS) target_period_ms = MIN_PERIOD_MS;
     
-    uint8_t down_steps = (TOTAL_STEPS * DOWNSTROKE_RATIO) / 100;  // 10步（40%）
-    uint8_t up_steps = TOTAL_STEPS - down_steps;                   // 15步（60%）
+    // V6.6修复：使用实际的波形表步数
+    // 下拍区域：索引0-13，共14步
+    // 上挥区域：索引14-24，共11步
+    const uint8_t down_steps = 14;  // 索引0-13
+    const uint8_t up_steps = 11;    // 索引14-24
     
     uint32_t step_ms;
     if (is_downstroke) {
+        // 下拍：35%的时间分配给14步
         step_ms = (target_period_ms * DOWNSTROKE_RATIO / 100) / down_steps;
     } else {
+        // 上挥：65%的时间分配给11步
         step_ms = (target_period_ms * UPSTROKE_RATIO / 100) / up_steps;
     }
     
@@ -345,6 +353,123 @@ int16_t Apply_Amplitude_Compensation(int16_t base_amplitude, float current_freq)
 
 /**
 ************************************************************************************************
+* @brief    自适应PID参数调整 - 根据频率动态优化控制参数 ⭐V6.4核心优化
+*
+* ## 背景
+* 不同扑动频率下，电机和机械系统的响应特性差异很大：
+* - 低频（≤3Hz）：电机有充足时间响应，可以使用激进参数追求快速跟踪
+* - 中频（3-5Hz）：响应时间适中，需要平衡响应速度和稳定性
+* - 高频（>5Hz）：响应时间紧张，必须使用保守参数避免超调和震荡
+*
+* ## 思路
+* 根据当前扑动频率，动态调整PID参数：
+* - Kp（比例增益）：低频大，高频小（控制响应速度）
+* - Ki（积分增益）：低频大，高频小（消除稳态误差）
+* - Kd（微分增益）：低频小，高频大（增强阻尼，抑制超调）
+*
+* ## 参数说明
+* @param current_freq: 当前扑动频率(Hz)
+* @param pid_motor1: M1(右前)电机的PID控制器指针
+* @param pid_motor3: M3(左前)电机的PID控制器指针
+*
+* ## 调优建议
+* 如果出现以下问题：
+* - 低频跟踪慢 → 增大低频Kp（18→20）
+* - 高频超调大 → 增大高频Kd（5→6）
+* - 中频震荡 → 减小中频Kp（14→12）
+************************************************************************************************
+**/
+void Adapt_PID_For_Frequency(float current_freq, pid_type_def* pid_motor1, pid_type_def* pid_motor3)
+{
+    float Kp, Ki, Kd;
+    
+    // V6.6调试：进一步降低Kp（刹车），大幅增大Kd（阻尼）
+    // 所有频率段都使用保守参数，优先稳定
+    
+    if (current_freq <= 3.0f) {
+        // 低频模式（≤3Hz）：V6.6调试参数
+        Kp = 6.0f;    // V6.6大幅降低：8→6（更强刹车）
+        Ki = 0.01f;   // V6.6大幅降低：0.02→0.01（减少积分累积）
+        Kd = 10.0f;   // V6.6大幅增大：8→10（更强阻尼，刹车）
+    } 
+    else if (current_freq <= 5.0f) {
+        // 中频模式（3-5Hz）：V6.6调试参数
+        Kp = 5.0f;    // V6.6大幅降低：6→5（更强刹车）
+        Ki = 0.008f;  // V6.6大幅降低：0.01→0.008
+        Kd = 12.0f;   // V6.6大幅增大：10→12（更强阻尼）
+    } 
+    else {
+        // 高频模式（>5Hz）：V6.6调试参数
+        Kp = 4.0f;    // V6.6大幅降低：5→4（最强刹车）
+        Ki = 0.005f;  // V6.6大幅降低：0.005→0.005
+        Kd = 15.0f;   // V6.6大幅增大：12→15（最强阻尼）
+    }
+    
+    // 应用到两个电机（双电机版本）
+    if (pid_motor1 != NULL) {
+        pid_motor1->Kp = Kp;
+        pid_motor1->Ki = Ki;
+        pid_motor1->Kd = Kd;
+    }
+    if (pid_motor3 != NULL) {
+        pid_motor3->Kp = Kp;
+        pid_motor3->Ki = Ki;
+        pid_motor3->Kd = Kd;
+    }
+}
+
+/**
+************************************************************************************************
+* @brief    动态缓冲区大小计算 - 根据频率调整极限保护强度 ⭐V6.4新增
+*
+* ## 背景
+* 不同频率下，电机在极限位置的惯性冲击力不同：
+* - 低频：惯性小，可以使用小缓冲区，获得更大的有效行程
+* - 高频：惯性大，必须使用大缓冲区，保护齿轮箱
+*
+* ## 思路
+* 根据频率动态调整BUFFER_ZONE_SIZE：
+* - 频率越高，缓冲区越大
+* - 使用分段线性插值，平滑过渡
+*
+* ## 参数说明
+* @param current_freq: 当前扑动频率(Hz)
+* @return 动态缓冲区大小（编码器单位）
+*
+* ## 效果对比
+* 固定缓冲区（100）：
+*   低频：浪费行程，振幅不足
+*   高频：保护不足，可能冲击
+*
+* 动态缓冲区：
+*   低频（2Hz）：缓冲80，有效行程大
+*   中频（4Hz）：缓冲120，平衡
+*   高频（6Hz）：缓冲160，强保护
+************************************************************************************************
+**/
+int16_t Get_Dynamic_Buffer_Size(float current_freq)
+{
+    int16_t buffer_size;
+    
+    if (current_freq <= 3.0f) {
+        // 低频：小缓冲，响应快
+        buffer_size = 80;
+    } 
+    else if (current_freq <= 5.0f) {
+        // 中频：线性插值 80→160
+        // 公式：80 + (freq - 3) / (5 - 3) * (160 - 80)
+        buffer_size = (int16_t)(80 + (current_freq - 3.0f) * 40.0f);
+    } 
+    else {
+        // 高频：大缓冲，强保护
+        buffer_size = 160;
+    }
+    
+    return buffer_size;
+}
+
+/**
+************************************************************************************************
 * @brief    极限位置缓冲处理 - 防止冲击损坏齿轮箱 ⭐关键保护机制
 *
 * ## 背景
@@ -386,13 +511,16 @@ int16_t Apply_Amplitude_Compensation(int16_t base_amplitude, float current_freq)
 **/
 int16_t Apply_Limit_Buffer(int16_t raw_target, uint8_t motor_index)
 {
-    static int16_t last_target[4] = {0};
-    static int16_t velocity[4] = {0};
+    // 双电机版本：数组大小优化为[2]，节省RAM
+    // 索引映射：motor_index=0(M1) → array[0], motor_index=2(M3) → array[1]
+    static int16_t last_target[2] = {0};  
+    static int16_t velocity[2] = {0};     
+    uint8_t idx = (motor_index == 2) ? 1 : 0;  // 索引映射
     
-    int16_t new_velocity = raw_target - last_target[motor_index];
+    int16_t new_velocity = raw_target - last_target[idx];
     
-    if ((velocity[motor_index] > 0 && new_velocity < 0) || 
-        (velocity[motor_index] < 0 && new_velocity > 0)) {
+    if ((velocity[idx] > 0 && new_velocity < 0) || 
+        (velocity[idx] < 0 && new_velocity > 0)) {
         
         int16_t buffer_target;
         
@@ -402,26 +530,26 @@ int16_t Apply_Limit_Buffer(int16_t raw_target, uint8_t motor_index)
             buffer_target = raw_target - BUFFER_ZONE_SIZE;
         }
         
-        last_target[motor_index] = buffer_target;
-        velocity[motor_index] = new_velocity;
+        last_target[idx] = buffer_target;
+        velocity[idx] = new_velocity;
         return buffer_target;
     }
     
-    last_target[motor_index] = raw_target;
-    velocity[motor_index] = new_velocity;
+    last_target[idx] = raw_target;
+    velocity[idx] = new_velocity;
     return raw_target;
 }
 
 /**
 ************************************************************************************************
-* @brief    姿态估计函数 - 基于4电机位置推算飞行姿态
+* @brief    姿态估计函数 - 基于2电机位置推算飞行姿态（双电机版本）
 *
 * ## 功能
 * 由于本项目没有IMU（惯性测量单元），无法直接获取飞机的姿态角。
-* 本函数通过分析4个电机的当前位置，间接推断飞行姿态：
+* 本函数通过分析2个电机的当前位置（M1右前+M3左前），间接推断飞行姿态：
 * - roll（横滚）：左右翼高度差
-* - pitch（俯仰）：前后翼高度差
-* - lift_balance（升力平衡）：4电机位置的方差
+* - pitch（俯仰）：设为0（双电机版本无前后电机）
+* - lift_balance（升力平衡）：2电机位置的方差
 *
 * ## 输出
 * 更新全局变量 attitude 结构体
@@ -433,57 +561,52 @@ int16_t Apply_Limit_Buffer(int16_t raw_target, uint8_t motor_index)
 void Estimate_Attitude(void)
 {
     int32_t sum = 0;
-    for (uint8_t i = 0; i < 4; i++) {
-        sum += Wings_Data.Wings_motor[i].Corrective_Angle;
-    }
-    attitude.avg_position = (int16_t)(sum / 4);
-    
-    for (uint8_t i = 0; i < 4; i++) {
-        attitude.sync_error[i] = Wings_Data.Wings_motor[i].Corrective_Angle - attitude.avg_position;
-    }
-    
-    int16_t left_avg = (Wings_Data.Wings_motor[1].Corrective_Angle + 
-                        Wings_Data.Wings_motor[2].Corrective_Angle) / 2;
-    int16_t right_avg = (Wings_Data.Wings_motor[0].Corrective_Angle + 
-                         Wings_Data.Wings_motor[3].Corrective_Angle) / 2;
+    // 双电机版本：只累加 M1[0] 和 M3[2]
+    sum += Wings_Data.Wings_motor[0].Corrective_Angle;
+    sum += Wings_Data.Wings_motor[2].Corrective_Angle;
+    attitude.avg_position = (int16_t)(sum / 2);  // 双电机版本：2个电机的平均
+
+    // 计算同步误差（相对于平均值）
+    attitude.sync_error[0] = Wings_Data.Wings_motor[0].Corrective_Angle - attitude.avg_position;
+    attitude.sync_error[2] = Wings_Data.Wings_motor[2].Corrective_Angle - attitude.avg_position;
+
+    // 计算横滚角（左翼 - 右翼）
+    int16_t left_avg = Wings_Data.Wings_motor[2].Corrective_Angle;   // M3(左前)
+    int16_t right_avg = Wings_Data.Wings_motor[0].Corrective_Angle;  // M1(右前)
     attitude.roll = left_avg - right_avg;
-    
-    int16_t front_avg = (Wings_Data.Wings_motor[0].Corrective_Angle + 
-                         Wings_Data.Wings_motor[2].Corrective_Angle) / 2;
-    int16_t back_avg = (Wings_Data.Wings_motor[1].Corrective_Angle + 
-                        Wings_Data.Wings_motor[3].Corrective_Angle) / 2;
-    attitude.pitch = front_avg - back_avg;
-    
+
+    // 双电机版本：pitch 无意义（已删除前后电机）
+    attitude.pitch = 0;
+
+    // 计算升力平衡（方差）
     int32_t variance = 0;
-    for (uint8_t i = 0; i < 4; i++) {
-        int32_t diff = attitude.sync_error[i];
-        variance += diff * diff;
-    }
-    attitude.lift_balance = (int16_t)(variance / 4);
+    variance += attitude.sync_error[0] * attitude.sync_error[0];
+    variance += attitude.sync_error[2] * attitude.sync_error[2];
+    attitude.lift_balance = (int16_t)(variance / 2);
 }
 
 /**
 ************************************************************************************************
-* @brief    电机同步补偿 - 使4电机保持同步（增强版）
+* @brief    电机同步补偿 - 使2电机保持同步（双电机版本）
 *
 * ## 背景
 * 由于制造公差、安装误差、PID参数差异等原因，
-* 4个电机的实际位置会逐渐出现偏差。
+* 2个电机的实际位置会逐渐出现偏差。
 * 如果偏差过大，会导致：
 * - 飞行不稳定（一侧升力大，另一侧小）
 * - 偏航（向一侧倾斜）
 * - 机械应力不均匀
 *
 * ## 思路
-* 定期检查4个电机与平均位置的偏差（sync_error），
+* 定期检查2个电机与平均位置的偏差（sync_error），
 * 如果某个电机偏离太远（>30编码器值），
 * 则微调其目标角度，使其趋向平均值。
 *
 * ## 参数说明
-* SYNC_GAIN = 5: 同步增益
+* SYNC_GAIN = 3: 同步增益（V6.5降低：5→3，防止过调导致不平衡）
 *   - 太小（如2）：同步太慢，效果不明显
 *   - 太大（如10）：可能引起振荡
-*   - 推荐：5-7
+*   - 推荐：3-5（V6.5推荐偏保守的3）
 *
 * THRESHOLD = 30: 同步阈值（编码器值）
 *   - 太小（如10）：频繁干预，影响正常扑动
@@ -494,16 +617,18 @@ void Estimate_Attitude(void)
 void Motor_Sync_Compensate(void)
 {
     int16_t max_diff = 0;
-    for (uint8_t i = 0; i < 4; i++) {
+    // 双电机版本：只检查 M1[0] 和 M3[2]
+    for (uint8_t i = 0; i < 4; i += 2) {  // 步长=2，遍历索引0和2
         int16_t abs_diff = abs16_fast(attitude.sync_error[i]);
         if (abs_diff > max_diff) {
             max_diff = abs_diff;
         }
     }
-    
+
     if (max_diff > 30) {
-        const int16_t SYNC_GAIN = 5;
-        for (uint8_t i = 0; i < 4; i++) {
+        const int16_t SYNC_GAIN = 3;  // V6.5降低：5→3，防止过调
+        // 双电机版本：只补偿 M1[0] 和 M3[2]
+        for (uint8_t i = 0; i < 4; i += 2) {  // 步长=2，遍历索引0和2
             int16_t compensation = (attitude.sync_error[i] * SYNC_GAIN) / 10;
             Wings_Data.Wings_motor[i].Target_Angle -= compensation;
         }
@@ -512,13 +637,15 @@ void Motor_Sync_Compensate(void)
 
 /**
 ************************************************************************************************
-* @brief    动态转向计算 - 实现小半径转向（优化版）
+* @brief    动态转向计算 - 实现小半径转向（优化版 - 带三重滤波）⭐V6.4优化
 *
-* ## 功能
-* 根据遥控器的Yaw输入（偏航摇杆），计算三组转向参数：
-* 1. turn_ratio（振幅差动比例）：左转时右翼振幅增大，左翼减小
-* 2. phase_diff（相位差）：左右翼扑动错开一定相位
-* 3. bias_angle（中心偏置）：整体偏移扑动中心
+* ## 背景
+* 原版问题：参数瞬间跳变 → 目标角度突变 → 机械冲击
+* 
+* ## 优化思路
+* 1. 输入信号滤波：消除遥控器抖动
+* 2. 自适应滤波系数：小转向时更平滑，大转向时响应快
+* 3. 参数级滤波：消除计算跳变
 *
 * ## 参数说明
 * @param yaw_input: Yaw通道输入值（-100 ~ +100，来自elrs_data.Yaw）
@@ -535,14 +662,43 @@ void Motor_Sync_Compensate(void)
 **/
 void Calculate_Dynamic_Turn(int16_t yaw_input, TurnControl_t* turn_data)
 {
-    turn_data->base_amp = 800;
+    // ====== 静态变量保存历史状态 ======
+    static int16_t last_turn_ratio = 0;
+    static int16_t last_phase_diff = 0;
+    static int16_t last_bias_angle = 0;
+    static int16_t last_yaw_input = 0;
     
-    float input_norm = (float)constrain(yaw_input, -100, 100) / 100.0f;
-    float turn_curve = input_norm * fabsf(input_norm);  // 二次曲线
+    // ====== 第一步：输入信号预处理 ======
+    // 对yaw输入本身进行滤波，消除遥控器抖动
+    int16_t smooth_yaw = (last_yaw_input * 7 + yaw_input) / 8;  // α=0.125
+    last_yaw_input = smooth_yaw;
     
-    turn_data->turn_ratio = (int16_t)(turn_curve * 100);
-    turn_data->phase_diff = (int16_t)(fabsf(turn_curve) * 2);
-    turn_data->bias_angle = (int16_t)(turn_curve * 30);
+    // ====== 第二步：计算原始参数 ======
+    turn_data->base_amp = 800;  // 基础振幅
+    
+    float input_norm = (float)constrain(smooth_yaw, -100, 100) / 100.0f;
+    float turn_curve = input_norm * fabsf(input_norm);  // 二次曲线：x²
+    
+    int16_t raw_turn_ratio = (int16_t)(turn_curve * 100);     // 范围：-100~+100
+    int16_t raw_phase_diff = (int16_t)(fabsf(turn_curve) * 3); // V6.4优化：增大到3（范围：0~3）
+    int16_t raw_bias_angle = (int16_t)(turn_curve * 40);       // V6.4优化：增大到40（范围：-40~+40）
+    
+    // ====== 第三步：自适应滤波系数 ======
+    // 小转向时：强滤波（α=0.1），追求平滑
+    // 大转向时：弱滤波（α=0.4），追求响应
+    float abs_input = fabsf(input_norm);
+    float alpha = 0.1f + abs_input * 0.3f;  // α ∈ [0.1, 0.4]
+    
+    // ====== 第四步：应用一阶低通滤波 ======
+    // 公式：output = α × new + (1-α) × old
+    turn_data->turn_ratio = (int16_t)(alpha * raw_turn_ratio + (1-alpha) * last_turn_ratio);
+    turn_data->phase_diff = (int16_t)(alpha * raw_phase_diff + (1-alpha) * last_phase_diff);
+    turn_data->bias_angle = (int16_t)(alpha * raw_bias_angle + (1-alpha) * last_bias_angle);
+    
+    // ====== 第五步：保存当前值供下次使用 ======
+    last_turn_ratio = turn_data->turn_ratio;
+    last_phase_diff = turn_data->phase_diff;
+    last_bias_angle = turn_data->bias_angle;
 }
 
 /**
@@ -551,7 +707,10 @@ void Calculate_Dynamic_Turn(int16_t yaw_input, TurnControl_t* turn_data)
  */
 uint32_t Calculate_Flap_Step_Time(uint8_t throttle)
 {
-    uint8_t is_downstroke = (sm_dir > 0 && sm_idx < 13) || (sm_dir < 0 && sm_idx >= 13);
+    // V6.6修复：is_downstroke判断逻辑
+    // 波形表：索引0-13是下拍区域，索引14-24是上挥区域
+    // sm_idx<=13是下拍（需要快速），sm_idx>13是上挥（需要慢速）
+    uint8_t is_downstroke = (sm_idx <= 13);
     return Calculate_Biomimetic_Step_Time(throttle, is_downstroke);
 }
 
@@ -578,10 +737,10 @@ uint32_t Calculate_Flap_Step_Time(uint8_t throttle)
 * ## 参数说明
 * @param yaw_input: 转向输入（-100 ~ +100）
 * @param turn_ctrl: 转向控制参数（由Calculate_Dynamic_Turn()生成）
-* @param motor_front_L_ready: 左前电机基准位置（中点+微调）
-* @param motor_front_R_ready: 右前电机基准位置
-* @param motor_back_L_ready: 左后电机基准位置
-* @param motor_back_R_ready: 右后电机基准位置
+* @param motor_M3_ready: M3(左前)电机基准位置（中点+微调）
+* @param motor_M1_ready: M1(右前)电机基准位置
+*
+* ⚠️ 双电机版本：只使用 M1(右前) 和 M3(左前) 两个电机
 *
 * ## 关键可调常量（在本函数内定义）
 * MIN_AMP = 600: 最小振幅（防止扑动幅度过小卡死）
@@ -595,10 +754,8 @@ uint32_t Calculate_Flap_Step_Time(uint8_t throttle)
 **/
 void Execute_Flap_Step(int16_t yaw_input,
                        TurnControl_t* turn_ctrl,
-                       int16_t motor_front_L_ready,
-                       int16_t motor_front_R_ready,
-                       int16_t motor_back_L_ready,
-                       int16_t motor_back_R_ready)
+                       int16_t motor_M3_ready,
+                       int16_t motor_M1_ready)
 {
     int16_t wave_value = BIOMIMETIC_WAVE[sm_idx];
     
@@ -610,8 +767,10 @@ void Execute_Flap_Step(int16_t yaw_input,
     int16_t ampR = Apply_Amplitude_Compensation(ampR_base, current_freq);
     int16_t ampL = Apply_Amplitude_Compensation(ampL_base, current_freq);
     
-    const int16_t MIN_AMP = 600;
-    const int16_t MAX_AMP = 1100;
+    // V6.4优化：增大振幅范围，支持100度扑动
+    // 100度 ≈ 1138编码器单位
+    const int16_t MIN_AMP = 700;   // V6.4: 从600→700，提高最小振幅
+    const int16_t MAX_AMP = 1200;  // V6.4: 从1100→1200，支持100度振幅（约105度）
     ampR = constrain(ampR, MIN_AMP, MAX_AMP);
     ampL = constrain(ampL, MIN_AMP, MAX_AMP);
     
@@ -629,28 +788,38 @@ void Execute_Flap_Step(int16_t yaw_input,
     int16_t biasR = -turn_ctrl->bias_angle;
     int16_t biasL = turn_ctrl->bias_angle;
     
-    int16_t raw_target_R = (int16_t)(motor_front_R_ready + biasR + FLAP_CENTER_OFFSET - q15_mul(ampR, cR));
-    int16_t raw_target_L = (int16_t)(motor_front_L_ready + biasL + FLAP_CENTER_OFFSET - q15_mul(ampL, cL));
+    int16_t raw_target_R = (int16_t)(motor_M1_ready + biasR + FLAP_CENTER_OFFSET - q15_mul(ampR, cR));
+    int16_t raw_target_L = (int16_t)(motor_M3_ready + biasL + FLAP_CENTER_OFFSET - q15_mul(ampL, cL));
     
     Wings_Data.Wings_motor[0].Target_Angle = Apply_Limit_Buffer(raw_target_R, 0);
-    Wings_Data.Wings_motor[3].Target_Angle = Apply_Limit_Buffer(
-        (int16_t)(motor_back_R_ready + biasR + FLAP_CENTER_OFFSET - q15_mul(ampR, cR)), 3);
-    
     Wings_Data.Wings_motor[2].Target_Angle = Apply_Limit_Buffer(raw_target_L, 2);
-    Wings_Data.Wings_motor[1].Target_Angle = Apply_Limit_Buffer(
-        (int16_t)(motor_back_L_ready + biasL + FLAP_CENTER_OFFSET - q15_mul(ampL, cL)), 1);
     
-    if (sm_dir > 0) {
-        if (++sm_idx >= 24) { 
-            sm_idx = 24; 
-            sm_dir = -1;
-            actual_flap_count++;
-        }
-    } else {
-        if (sm_idx-- == 0) { 
-            sm_idx = 0; 
-            sm_dir = +1;
-            actual_flap_count++;
-        }
+    // 【调试】同步关键变量到全局，用于STM-Studio观察
+    #ifdef DEBUG_MODE
+    extern volatile int16_t dbg_wave_value;
+    extern volatile int16_t dbg_q15_result;
+    extern volatile int8_t  dbg_current_idx;
+    dbg_wave_value = cL;                           // M3使用的波形值
+    dbg_q15_result = q15_mul(ampL, cL);            // q15乘法结果
+    dbg_current_idx = (int8_t)sm_idx;              // 当前索引（递增前）
+    #endif
+    
+    // V6.7修复：完全重写波形表扫描逻辑
+    // 波形表结构：
+    //   索引0-12:  下拍区域（从上极限到下极限）- 快速
+    //   索引13:    下极限缓冲点
+    //   索引14-24: 上挥区域（从下极限回到上极限）- 慢速
+    // 
+    // 扫描逻辑：
+    //   下拍：正向扫描 0 → 13（14步，快速）
+    //   上挥：正向扫描 14 → 24（11步，慢速）
+    //   回到起点：从索引24跳回索引0
+    
+    // 使用后置递增，确保每个索引都被访问
+    sm_idx++;
+    
+    if (sm_idx > 24) { 
+        sm_idx = 0;  // 到达上极限，跳回起点
+        actual_flap_count++;  // 完成一个完整周期
     }
 }

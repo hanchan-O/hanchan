@@ -126,13 +126,13 @@ static inline int16_t apply_deadzone(int16_t value, int16_t threshold)
     }
     return value;
 }
-extern DMA_HandleTypeDef hdma_usart1_rx;
+extern DMA_HandleTypeDef hdma_usart2_rx;
 
 uint8_t elrs_data_temp[36] = {0};
 void ELRS_Init(void)
 {
-    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, elrs_data_temp, MAX_FRAME_SIZE); // 启用空闲中断接收
-    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);                      // 关闭DMA传输过半中断
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart2, elrs_data_temp, MAX_FRAME_SIZE); // 启用空闲中断接收
+    __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);                      // 关闭DMA传输过半中断
 }
 
 ELRS_Data elrs_data;
@@ -154,9 +154,10 @@ void ELRS_UARTE_RxCallback(uint16_t Size)
             elrs_data.channels[3] = ((uint16_t)elrs_data_temp[date_i+7] >> 1 | ((uint16_t)elrs_data_temp[date_i+8] << 7)) & 0x07FF;
             elrs_data.channels[4] = ((uint16_t)elrs_data_temp[date_i+8] >> 4 | ((uint16_t)elrs_data_temp[date_i+9] << 4)) & 0x07FF;
             elrs_data.channels[5] = ((uint16_t)elrs_data_temp[date_i+9] >> 7 | ((uint16_t)elrs_data_temp[date_i+10] << 1) | ((uint16_t)elrs_data_temp[date_i+11] << 9)) & 0x07FF;
+            elrs_data.channels[6] = ((uint16_t)elrs_data_temp[date_i+11] >> 3 | ((uint16_t)elrs_data_temp[date_i+12] << 5)) & 0x07FF;
             // 通道映射：将遥控器原始通道值映射到控制参数
             // channels[0]=Yaw(左右), channels[1]=Pitch(前后), channels[2]=Throttle(油门)
-            // channels[3]=Roll(翻滚), channels[4]=Switch(开关), channels[5]=Mode(模式)
+            // channels[3]=Roll(翻滚), channels[4]=Switch(开关), channels[5]=Mode(模式), channels[6]=Mode4开关
             
             elrs_data.Roll      = int16_Map_with_median(elrs_data.channels[3], 174, 1808, 992, -400, 400);  // 翻滚控制
             elrs_data.Throttle  = int16_Map_with_median(elrs_data.channels[2], 174, 1811, 992, 5, 15);        // 油门控制(5-15)
@@ -165,7 +166,11 @@ void ELRS_UARTE_RxCallback(uint16_t Size)
             elrs_data.midpoint_1= int16_Map_with_median(abs16_fast(elrs_data.Yaw), 0, 100, 50, 0, 30);        // Yaw越大，偏置越大(0-30)
             elrs_data.midpoint  = apply_deadzone(int16_Map_with_median(elrs_data.channels[1], 174, 1808, 992, -80, 80), 5);  // 前后微调(带死区)
             elrs_data.Switch    = (elrs_data.channels[4] > 1500) ? 1 : 0;  // 开关：0=关闭(<1500), 1=开启(>1500)
-            elrs_data.Mode      = (elrs_data.channels[5] > 1700) ? 2 : ((elrs_data.channels[5] > 900 && elrs_data.channels[5] < 1100) ? 1 : 0);  // 模式：0=并翅, 1=平翅, 2=扑动
+            if (elrs_data.channels[6] > 1500) {
+                elrs_data.Mode = 4;  // Mode4：电机持续旋转模式（独立开关，优先于其他模式）
+            } else {
+                elrs_data.Mode = (elrs_data.channels[5] > 1700) ? 2 : ((elrs_data.channels[5] > 900 && elrs_data.channels[5] < 1100) ? 1 : 0);  // 模式：0=并翅, 1=平翅, 2=扑动
+            }
         }
 
         else

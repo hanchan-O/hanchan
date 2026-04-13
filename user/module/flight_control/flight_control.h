@@ -142,9 +142,33 @@ uint32_t Calculate_Flap_Step_Time(uint8_t throttle);
 **/
 void Execute_Flap_Step(int16_t yaw_input,
                        TurnControl_t* turn_ctrl,
-                       int16_t motor_front_L_ready,
-                       int16_t motor_front_R_ready,
-                       int16_t motor_back_L_ready,
-                       int16_t motor_back_R_ready);
+                       int16_t motor_M3_ready,    // M3(左前)基准位置
+                       int16_t motor_M1_ready);   // M1(右前)基准位置
+
+/**
+************************************************************************************************
+* @brief    自适应PID参数调整 - 根据频率动态优化控制参数 ⭐V6.4新增
+* @param    current_freq: 当前扑动频率(Hz)
+* @param    pid_motor1: M1电机的PID控制器指针
+* @param    pid_motor3: M3电机的PID控制器指针
+* @return   None
+* @说明     低频(≤3Hz)：激进参数，快速响应
+*          中频(3-5Hz)：平衡参数，兼顾响应与稳定
+*          高频(>5Hz)：保守参数，优先稳定
+************************************************************************************************
+**/
+void Adapt_PID_For_Frequency(float current_freq, pid_type_def* pid_motor1, pid_type_def* pid_motor3);
+
+/**
+************************************************************************************************
+* @brief    动态缓冲区大小计算 - 根据频率调整极限保护强度 ⭐V6.4新增
+* @param    current_freq: 当前扑动频率(Hz)
+* @return   动态缓冲区大小（编码器单位）
+* @说明     低频：小缓冲（80），响应快
+*          中频：标准缓冲（120），平衡
+*          高频：大缓冲（160），强保护
+************************************************************************************************
+**/
+int16_t Get_Dynamic_Buffer_Size(float current_freq);
 
 #endif // __FLIGHT_CONTROL_H__
