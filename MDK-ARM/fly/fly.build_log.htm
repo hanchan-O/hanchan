@@ -27,11 +27,23 @@ Project File Date:  04/13/2026
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\Program Files\Keil_v5-arm\ARM\ARM_Compiler_5.06u7\Bin'
 Build target 'fly'
+compiling motor.c...
 compiling AS5600_PWM.c...
+compiling flight_control.c...
+compiling main.c...
+../Core/Src/main.c(465): warning:  #177-D: variable "targets"  was declared but never referenced
+  				int16_t targets[4] = {target_motor0, 0, target_motor2, 0};
+../Core/Src/main.c(592): warning:  #223-D: function "abs" declared implicitly
+                  if (abs(current_speed[0]) < 100) current_speed[0] = 0;
+../Core/Src/main.c(596): warning:  #223-D: function "abs" declared implicitly
+                  if (abs(current_speed[1]) < 100) current_speed[1] = 0;
+../Core/Src/main.c(677): warning:  #177-D: variable "targets"  was declared but never referenced
+  					int16_t targets[4] = {target_motor0, 0, target_motor2, 0};
+../Core/Src/main.c: 4 warnings, 0 errors
 linking...
-Program Size: Code=18264 RO-data=436 RW-data=176 ZI-data=1952  
+Program Size: Code=18116 RO-data=412 RW-data=160 ZI-data=1952  
 FromELF: creating hex file...
-"fly\fly.axf" - 0 Error(s), 0 Warning(s).
+"fly\fly.axf" - 0 Error(s), 4 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -54,7 +66,7 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE@6.1.0
       Include file:  CMSIS/Core/Include/tz_context.h
-Build Time Elapsed:  00:00:01
+Build Time Elapsed:  00:00:02
 </pre>
 </body>
 </html>

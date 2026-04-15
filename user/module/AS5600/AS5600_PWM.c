@@ -34,18 +34,17 @@
 /**
  * @brief 一阶低通滤波系数（浮点格式）
  * 
- * ⭐【V6.3针对>100噪声优化】
- * 原值0.2对于>100的噪声太弱，已增强到0.1
+ * V6.10紧急修复：发现100ms延时问题，大幅增大系数
+ * 原值0.3导致响应太慢，增大到0.7减少滤波延时
  * 
- * 可调范围：0.05 ~ 0.3
- * 当前值：0.2（折中版，兼顾响应速度和噪声抑制）
+ * 可调范围：0.1 ~ 0.9
+ * 当前值：0.7（V6.10：大幅减少延时）
  * 建议：
- *   - 数据仍很抖（噪声>100）→ 减小到0.05-0.08（超强平滑）
- *   - 响应太慢感觉迟钝 → 增大到0.25-0.3（快速响应）
- *   - 高速扑动(>8Hz)跟踪不上 → 增大到0.2-0.25
- *   - 一般保持0.2即可（针对当前AS5600编码器噪声优化）
+ *   - 响应太慢 → 增大到0.6-0.8（减少延时）
+ *   - 数据很抖 → 减小到0.3-0.5（增强滤波）
+ *   - 平衡选择 → 0.5-0.7
  */
-#define ALPHA_FLOAT 0.2f
+#define ALPHA_FLOAT 0.7f
 
 /** @brief 预计算：(1 - ALPHA_FLOAT)，用于优化计算速度 */
 #define ONE_MINUS_ALPHA_FLOAT (1.0f - ALPHA_FLOAT)
@@ -349,10 +348,6 @@ void ADC_Sample(uint32_t current_time)
 *   - Wings_motor[2]对应M3(左前)
 ************************************************************************************************
 **/
- int a1=0;
- int cL;
- int b1 =0;
- 
 void StarAndGetResult(void){
 	uint32_t current_time = HAL_GetTick();
 	
@@ -360,24 +355,21 @@ void StarAndGetResult(void){
 	ADC_Sample(current_time);
 	
 	// 步骤2：对2个通道分别应用限幅+低通滤波
-//
-// ⚠️ 【V6.3重要修复】使用全局变量filtered_ad[]（已定义在第104行）
-//   原因：局部变量在函数结束后销毁，无法在Keil Watch窗口中调试
-//   修改：删除了原来的"uint16_t filtered_ad[2]"局部变量声明
-//   现在：直接写入全局float filtered_ad[2]，可在Watch中实时监控！
-//
-// 双电机版本通道映射：
-// ┌─────────────┬──────────┬──────────┐
-// │ ADC通道索引 │ STM32引脚 │ 物理电机 │
-// ├─────────────┼──────────┼──────────┤
-// │ filtered_ad[0] │   PA0    │ M3(左前) │
-// │ filtered_ad[1] │   PA1    │ M1(右前) │
-// └─────────────┴──────────┴──────────┘
-// 直接调用滤波函数，函数内部会更新全局filtered_ad数组
-limit_and_lowpass_filter(AD_Value[0], 0);  // M3(左前) - PA0
-limit_and_lowpass_filter(AD_Value[1], 1);  // M1(右前) - PA1
-a1=AD_Value[0];
-cL=filtered_ad[0];
+	//
+	// ⚠️ 【V6.3重要修复】使用全局变量filtered_ad[]（已定义在第104行）
+	//   原因：局部变量在函数结束后销毁，无法在Keil Watch窗口中调试
+	//   修改：删除了原来的"uint16_t filtered_ad[2]"局部变量声明
+	//   现在：直接写入全局float filtered_ad[2]，可在Watch中实时监控！
+	//
+	// 双电机版本通道映射：
+	// ┌─────────────┬──────────┬──────────┐
+	// │ ADC通道索引 │ STM32引脚 │ 物理电机 │
+	// ├─────────────┼──────────┼──────────┤
+	// │ filtered_ad[0] │   PA0    │ M3(左前) │
+	// │ filtered_ad[1] │   PA1    │ M1(右前) │
+	// └─────────────┴──────────┴──────────┘
+	filtered_ad[0] = (float)limit_and_lowpass_filter(AD_Value[0], 0);  // M3(左前) - PA0
+	filtered_ad[1] = (float)limit_and_lowpass_filter(AD_Value[1], 1);  // M1(右前) - PA1
 	
 	// 步骤3：角度转换（统一处理，无方向反转）
 	//
@@ -399,9 +391,8 @@ cL=filtered_ad[0];
 	// ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 	
 	// M1(右前)：PA1(ADC_CH1) → filtered_ad[1] → Wings_motor[0]
-	Wings_Data.Wings_motor[0].Corrective_Angle = PROCESS_VALUE((uint16_t)filtered_ad[1], MOTOR1_MIDPOINT);
-	
+	Wings_Data.Wings_motor[0].Corrective_Angle = PROCESS_VALUE((uint16_t)(filtered_ad[1] + 0.5f), MOTOR1_MIDPOINT);
+
 	// M3(左前)：PA0(ADC_CH0) → filtered_ad[0] → Wings_motor[2]
-	Wings_Data.Wings_motor[2].Corrective_Angle = PROCESS_VALUE((uint16_t)filtered_ad[0], MOTOR3_MIDPOINT);
-	b1=Wings_Data.Wings_motor[2].Corrective_Angle;
+	Wings_Data.Wings_motor[2].Corrective_Angle = PROCESS_VALUE((uint16_t)(filtered_ad[0] + 0.5f), MOTOR3_MIDPOINT);
 }

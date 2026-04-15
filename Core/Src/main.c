@@ -89,7 +89,7 @@
 //
 // ⚠️ 双电机版本：只保留 M1(右前) 和 M3(左前) 的中点值
 //
-const int16_t motor_front_L_midpoint = 1968;   // M3(左前) 中点值
+const int16_t motor_front_L_midpoint = 2000;// M3(左前) 中点值
                                                 // ⚠️ 调小→上翘 | 调大→下低
 const int16_t motor_front_R_midpoint = 2048;   // M1(右前) 中点值
                                                 // ⚠️ 调小→上翘 | 调大→下低
@@ -333,11 +333,11 @@ int main(void)
             TurnControl_t turn_ctrl;
             Calculate_Dynamic_Turn(elrs_data.Yaw, &turn_ctrl);
 
-            // V6.5调试：大幅降低频率范围，方便观察问题
-            // throttle=5 → 1.7Hz, throttle=8 → 2.7Hz, throttle=10 → 3.3Hz, throttle=12 → 4Hz
+            // V6.9最终：优化频率范围，thr=6~10
+            // throttle=6 → 2.4Hz, throttle=8 → 3.2Hz, throttle=10 → 4.0Hz
             thr = (uint8_t)elrs_data.Throttle;
-            if (thr < 5) thr = 5;   // V6.5调试：降低到5，最低约1.7Hz（很慢）
-            if (thr > 10) thr = 10;  // V6.5调试：降低到10，最高约3.3Hz（慢速）
+            if (thr < 6) thr = 6;   // V6.9：最低6，约2.4Hz（确保升力）
+            if (thr > 10) thr = 10;  // V6.9：最高10，约4.0Hz（配合MIN_STEP_MS=10ms）
 
             uint32_t current_tick = HAL_GetTick();
 
@@ -406,13 +406,17 @@ int main(void)
 				// V6.5修复：模式切换时清除PID状态
 				PID_clear(&motor_1_pid);
 				PID_clear(&motor_3_pid);
-				// 【V6.4.6防超调】基于V6.4.5 + 抑制Mode1超调
-				for (int i = 0; i < 2; i++) {
-					pid_type_def* pid_list[2] = {&motor_1_pid, &motor_3_pid};
-					pid_list[i]->Kp = 9.0f;   // 保持9.0
-					pid_list[i]->Ki = 0.01f;  // 保持0.01
-					pid_list[i]->Kd = 7.5f;   // ⭐ 增强阻尼：6.0→7.5（抑制"过去再回来"）
-				}
+			}
+			
+			// V6.10修复：每次循环强制设置Mode1的PID参数，防止被Mode2的动态PID覆盖
+			// 从Mode2切换时，确保立即恢复Mode1的高Kp值
+			if (motor_1_pid.Kp != 9.0f || motor_3_pid.Kp != 9.0f) {
+				motor_1_pid.Kp = 9.0f;
+				motor_1_pid.Ki = 0.01f;
+				motor_1_pid.Kd = 7.5f;
+				motor_3_pid.Kp = 9.0f;
+				motor_3_pid.Ki = 0.01f;
+				motor_3_pid.Kd = 7.5f;
 			}
 
 			// 基准角计算（双电机版本 - 带转向差动）
@@ -612,13 +616,16 @@ int main(void)
 				// V6.5修复：模式切换时清除PID状态
 				PID_clear(&motor_1_pid);
 				PID_clear(&motor_3_pid);
-				// 【V6.4.5回归】基于V6.3.3稳定基线 + 适度提速
-				for (int i = 0; i < 2; i++) {
-					pid_type_def* pid_list[2] = {&motor_1_pid, &motor_3_pid};
-					pid_list[i]->Kp = 10.0f;  // 基线9.0→10.0 (+11%)
-					pid_list[i]->Ki = 0.02f;  // 保持0.02
-					pid_list[i]->Kd = 5.0f;   // 基线4.0→5.0 (+25%)
-				}
+			}
+			
+			// V6.10修复：每次循环强制设置Mode0的PID参数，防止被Mode2的动态PID覆盖
+			if (motor_1_pid.Kp != 10.0f || motor_3_pid.Kp != 10.0f) {
+				motor_1_pid.Kp = 10.0f;
+				motor_1_pid.Ki = 0.02f;
+				motor_1_pid.Kd = 5.0f;
+				motor_3_pid.Kp = 10.0f;
+				motor_3_pid.Ki = 0.02f;
+				motor_3_pid.Kd = 5.0f;
 			}
 //         motor_3_pid.Kp=motor_1_pid.Kp;
 //			motor_3_pid.Ki=motor_1_pid.Ki;
