@@ -170,15 +170,15 @@ volatile float   dbg_freq = 0.0f;  // 当前频率值
  *   - 所需时间：8° × 0.8ms = 6.4ms
  *   - 设置8ms，余量约25%，临界但可测试
  * 
- * 油门范围：6-10，对应频率2.4-4.0Hz
+ * 油门范围：6-9，对应频率2.8-4.0Hz
  * 
  * 可调范围：8 ~ 16
- * 当前值：8
+ * 当前值：10（V6.11：增大到10ms，确保100°幅度下电机能跟上）
  * 建议：
- *   - 测试跟踪良好 → 保持8ms或尝试6ms
- *   - 电机跟不上 → 增大到10-16ms
+ *   - 测试跟踪良好 → 保持10ms或尝试8ms
+ *   - 电机跟不上 → 增大到12-16ms
  */
-#define MIN_STEP_MS 8
+#define MIN_STEP_MS 10
 
 // ==================== 动态补偿系统内部变量 ====================
 static volatile uint16_t actual_flap_count = 0;       // 实际扑动次数统计（用于调试）
@@ -266,7 +266,7 @@ uint32_t Calculate_Biomimetic_Step_Time(uint8_t throttle, uint8_t is_downstroke)
 {
     if (throttle == 0) throttle = 5;
     
-    const uint32_t BASE_PERIOD_MS = 2500U;  // 基准周期2.5秒（V6.8优化：支持4Hz）
+    const uint32_t BASE_PERIOD_MS = 2200U;  // V6.11优化：基准周期2.2秒，thr=6→2.9Hz, thr=9→4.0Hz
     
     uint32_t target_period_ms = BASE_PERIOD_MS / throttle;
     
@@ -340,16 +340,16 @@ int16_t Apply_Amplitude_Compensation(int16_t base_amplitude, float current_freq)
 {
     float compensation_factor;
     
-    // V6.10优化：base_amp=1024（90°），优化补偿系数
-    // 策略：低频90°，高频适当减小到80°，平衡升力和稳定性
-    if (current_freq <= 2.5f) {
-        compensation_factor = 1.00f;  // 低频：1024×1.00=1024（精确90°）
+    // V6.11优化：base_amp=1138（100°），补偿系数实现目标幅度
+    // 目标：低频2.8Hz→100°, 高频4.0Hz→90°
+    if (current_freq <= 3.0f) {
+        compensation_factor = 1.00f;  // 低频：1138×1.00=1138（精确100°）
     } else if (current_freq <= 3.5f) {
-        compensation_factor = 0.97f;  // 中频：1024×0.97≈993（约87°）
-    } else if (current_freq <= 4.5f) {
-        compensation_factor = 0.94f;  // 高频：1024×0.94≈963（约85°）
+        compensation_factor = 0.96f;  // 中频：1138×0.96≈1092（约96°）
+    } else if (current_freq <= 4.2f) {
+        compensation_factor = 0.90f;  // 高频：1138×0.90≈1024（精确90°）
     } else {
-        compensation_factor = 0.91f;  // 甚高频：1024×0.91≈932（约82°）
+        compensation_factor = 0.85f;  // 甚高频：1138×0.85≈967（约85°，保护电机）
     }
     
     return (int16_t)(base_amplitude * compensation_factor);
@@ -387,26 +387,26 @@ void Adapt_PID_For_Frequency(float current_freq, pid_type_def* pid_motor1, pid_t
 {
     float Kp, Ki, Kd;
     
-    // V6.10优化：平衡跟踪和超调
-    // 策略：适度Kp确保跟踪，适度Kd抑制超调
+    // V6.11优化：提高响应速度，增大Kp和Kd
+    // 目标：快速响应，精确跟踪代码计算的数值
     
     if (current_freq <= 3.0f) {
-        // 低频模式（≤3Hz）：适度Kp+Kd
-        Kp = 6.0f;    // 适度Kp，平衡跟踪和超调
-        Ki = 0.0f;    // 关闭积分
-        Kd = 2.0f;    // 适度Kd抑制超调
+        // 低频模式（≤3Hz）：较大Kp确保快速跟踪，大Kd抑制超调
+        Kp = 8.0f;    // V6.11：增大Kp，加快响应
+        Ki = 0.0f;    // 关闭积分，避免累积误差
+        Kd = 3.0f;    // V6.11：增大Kd，增强阻尼
     } 
-    else if (current_freq <= 4.0f) {
-        // 中频模式（3-4.0Hz）：适度Kp+Kd
-        Kp = 5.5f;    // 适度Kp
+    else if (current_freq <= 3.8f) {
+        // 中频模式（3-3.8Hz）：平衡响应和稳定
+        Kp = 7.0f;    // V6.11：适度Kp
         Ki = 0.0f;    // 关闭积分
-        Kd = 1.5f;    // 适度Kd
+        Kd = 2.5f;    // V6.11：适度Kd
     }
     else {
-        // 高频模式（>4.0Hz）：适度Kp+低Kd
-        Kp = 5.0f;    // 适度Kp确保高频跟踪
+        // 高频模式（>3.8Hz）：保守Kp+适度Kd，确保稳定
+        Kp = 6.0f;    // V6.11：适度Kp，避免高频振荡
         Ki = 0.0f;    // 关闭积分
-        Kd = 1.0f;    // 低Kd
+        Kd = 2.0f;    // V6.11：保持一定阻尼
     }
     
     // 应用到两个电机（双电机版本）
@@ -649,9 +649,9 @@ void Calculate_Dynamic_Turn(int16_t yaw_input, TurnControl_t* turn_data)
     last_yaw_input = smooth_yaw;
     
     // ====== 第二步：计算原始参数 ======
-    // V6.10优化：平衡幅度和超调，设置为90°总幅度
-    // 90°对应编码器值：4096/360*90=1024
-    turn_data->base_amp = 1024;  // V6.10优化：910→1024，90°总幅度
+    // V6.11优化：基础幅度1138对应100°，配合补偿系数实现低频100°/高频90°
+    // 100°对应编码器值：4096/360*100=1138
+    turn_data->base_amp = 1138;  // V6.11：1138=100°基础幅度
     
     float input_norm = (float)constrain(smooth_yaw, -100, 100) / 100.0f;
     float turn_curve = input_norm * fabsf(input_norm);  // 二次曲线：x²

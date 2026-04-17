@@ -101,6 +101,10 @@ extern void Set_Pwm(int16_t motor1_out, int16_t motor3_out);
 extern uint16_t myabs(int16_t a);
 extern void Motor_ECD_Control(void);
 
+// 外部变量声明（供调试使用）
+extern volatile int motor_1_set_pwm;
+extern volatile int motor_3_set_pwm;
+
 // 分支消除的 int16 绝对值（两补码）
 static inline uint16_t abs16_fast(int16_t x) {
     int16_t m = x >> 15;            // x<0 → -1；x>=0 → 0

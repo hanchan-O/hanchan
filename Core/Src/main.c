@@ -244,6 +244,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  
   MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_TIM2_Init();
@@ -333,11 +334,11 @@ int main(void)
             TurnControl_t turn_ctrl;
             Calculate_Dynamic_Turn(elrs_data.Yaw, &turn_ctrl);
 
-            // V6.9最终：优化频率范围，thr=6~10
-            // throttle=6 → 2.4Hz, throttle=8 → 3.2Hz, throttle=10 → 4.0Hz
+            // V6.11优化：调整频率范围，thr=6→2.8Hz, thr=9→4.0Hz
+            // throttle=6 → 2.8Hz (100°幅度), throttle=9 → 4.0Hz (90°幅度)
             thr = (uint8_t)elrs_data.Throttle;
-            if (thr < 6) thr = 6;   // V6.9：最低6，约2.4Hz（确保升力）
-            if (thr > 10) thr = 10;  // V6.9：最高10，约4.0Hz（配合MIN_STEP_MS=10ms）
+            if (thr < 6) thr = 6;   // V6.11：最低6，约2.8Hz
+            if (thr > 9) thr = 9;   // V6.11：最高9，约4.0Hz
 
             uint32_t current_tick = HAL_GetTick();
 
@@ -596,9 +597,15 @@ int main(void)
                 if (abs(current_speed[1]) < 100) current_speed[1] = 0;
             }
 
-            int16_t m1_pwm = -current_speed[0];
+            // Mode4: 两翼同向转动
+            // M1和M3同向PWM，确保两翼同向旋转
+            int16_t m1_pwm = current_speed[0];
             int16_t m3_pwm = current_speed[1];
             Set_Pwm(m1_pwm, m3_pwm);
+            
+            // 更新全局变量供调试使用
+            motor_1_set_pwm = m1_pwm;
+            motor_3_set_pwm = m3_pwm;
 
             #ifdef DEBUG_MODE
             dbg_mode = 4;

@@ -38,8 +38,8 @@
 //   - MOTOR3_MIDPOINT 对应 AD_Value[0] (PA0, M3左前)
 //   - 虽然索引顺序不同，但宏命名按电机编号命名
 
-#define MOTOR1_MIDPOINT 1508  // M1(右前)编码器中点值 → 对应 AD_Value[1] → Wings_motor[0]
-#define MOTOR3_MIDPOINT 815// M3(左前)编码器中点值 → 对应 AD_Value[0] → Wings_motor[2]
+#define MOTOR1_MIDPOINT 2230  // M1(右前)编码器中点值 → 对应 AD_Value[1] → Wings_motor[0]
+#define MOTOR3_MIDPOINT 1440// M3(左前)编码器中点值 → 对应 AD_Value[0] → Wings_motor[2]
 
 // ==================== 编码器方向反转标志 ====================
 // 说明：由于机械安装方向不同，部分电机编码器方向与标准方向相反
