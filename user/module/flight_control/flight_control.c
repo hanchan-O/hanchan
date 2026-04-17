@@ -170,15 +170,15 @@ volatile float   dbg_freq = 0.0f;  // 当前频率值
  *   - 所需时间：8° × 0.8ms = 6.4ms
  *   - 设置8ms，余量约25%，临界但可测试
  * 
- * 油门范围：6-9，对应频率2.8-4.0Hz
+ * 油门范围：6-9，对应频率2.67-4.0Hz
  * 
  * 可调范围：8 ~ 16
- * 当前值：8（V6.11：保持8ms，追求更高响应速度）
+ * 当前值：10（V6.12：统一10ms，匹配63°幅度和电机能力）
  * 建议：
- *   - 测试跟踪良好 → 保持8ms
- *   - 电机跟不上 → 增大到10-16ms
+ *   - 测试跟踪良好 → 保持10ms
+ *   - 需要更高频率 → 降低幅度或增大MIN_STEP_MS
  */
-#define MIN_STEP_MS 8
+#define MIN_STEP_MS 10
 
 // ==================== 动态补偿系统内部变量 ====================
 static volatile uint16_t actual_flap_count = 0;       // 实际扑动次数统计（用于调试）
@@ -266,7 +266,7 @@ uint32_t Calculate_Biomimetic_Step_Time(uint8_t throttle, uint8_t is_downstroke)
 {
     if (throttle == 0) throttle = 5;
     
-    const uint32_t BASE_PERIOD_MS = 2200U;  // V6.11优化：基准周期2.2秒，thr=6→2.9Hz, thr=9→4.0Hz
+    const uint32_t BASE_PERIOD_MS = 2250U;  // V6.12：统一step_ms=10ms，thr=6→2.67Hz, thr=9→4.0Hz
     
     uint32_t target_period_ms = BASE_PERIOD_MS / throttle;
     
@@ -340,16 +340,16 @@ int16_t Apply_Amplitude_Compensation(int16_t base_amplitude, float current_freq)
 {
     float compensation_factor;
     
-    // V6.11优化：base_amp=1138（100°），补偿系数实现目标幅度
-    // 目标：低频2.8Hz→100°, 高频4.0Hz→90°
+    // V6.12：base_amp=720（63°），补偿系数微调优化升力
+    // 目标：低频2.67Hz→72°, 高频4.0Hz→68°
     if (current_freq <= 3.0f) {
-        compensation_factor = 1.00f;  // 低频：1138×1.00=1138（精确100°）
+        compensation_factor = 1.15f;  // 低频：720×1.15=828（约73°）
     } else if (current_freq <= 3.5f) {
-        compensation_factor = 0.96f;  // 中频：1138×0.96≈1092（约96°）
+        compensation_factor = 1.10f;  // 中频：720×1.10=792（约70°）
     } else if (current_freq <= 4.2f) {
-        compensation_factor = 0.90f;  // 高频：1138×0.90≈1024（精确90°）
+        compensation_factor = 1.05f;  // 高频：720×1.05=756（约66°）
     } else {
-        compensation_factor = 0.85f;  // 甚高频：1138×0.85≈967（约85°，保护电机）
+        compensation_factor = 1.00f;  // 甚高频：720×1.00=720（63°）
     }
     
     return (int16_t)(base_amplitude * compensation_factor);
@@ -649,9 +649,9 @@ void Calculate_Dynamic_Turn(int16_t yaw_input, TurnControl_t* turn_data)
     last_yaw_input = smooth_yaw;
     
     // ====== 第二步：计算原始参数 ======
-    // V6.11优化：基础幅度1138对应100°，配合补偿系数实现低频100°/高频90°
-    // 100°对应编码器值：4096/360*100=1138
-    turn_data->base_amp = 1138;  // V6.11：1138=100°基础幅度
+    // V6.12：统一step_ms=10ms，基础幅度720对应63°
+    // 63°对应编码器值：4096/360*63=717≈720
+    turn_data->base_amp = 720;  // V6.12：720=63°基础幅度（配合10ms步进）
     
     float input_norm = (float)constrain(smooth_yaw, -100, 100) / 100.0f;
     float turn_curve = input_norm * fabsf(input_norm);  // 二次曲线：x²
